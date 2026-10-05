@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.corsair.deluxe.CorsairGame;
+import com.corsair.deluxe.presentation.WorldScreen;
 
 public class SplashScreen extends ScreenAdapter {
     private final CorsairGame game;
@@ -25,20 +26,22 @@ public class SplashScreen extends ScreenAdapter {
 
         ScreenUtils.clear(58f / 255f, 60f / 255f, 111f / 255f, 1f);
 
-        float screenW = Gdx.graphics.getWidth();
-        float screenH = Gdx.graphics.getHeight();
-        float imageW = splashImage.getWidth();
-        float imageH = splashImage.getHeight();
+        if (splashImage != null) {
+            float screenW = Gdx.graphics.getWidth();
+            float screenH = Gdx.graphics.getHeight();
+            float imageW = splashImage.getWidth();
+            float imageH = splashImage.getHeight();
 
-        float scale = Math.min(screenW / imageW, screenH / imageH);
-        float drawW = imageW * scale;
-        float drawH = imageH * scale;
-        float drawX = (screenW - drawW) / 2f;
-        float drawY = (screenH - drawH) / 2f;
+            float scale = Math.min(screenW / imageW, screenH / imageH);
+            float drawW = imageW * scale;
+            float drawH = imageH * scale;
+            float drawX = (screenW - drawW) / 2f;
+            float drawY = (screenH - drawH) / 2f;
 
-        batch.begin();
-        batch.draw(splashImage, drawX, drawY, drawW, drawH);
-        batch.end();
+            batch.begin();
+            batch.draw(splashImage, drawX, drawY, drawW, drawH);
+            batch.end();
+        }
 
         if (elapsed >= 3f) {
             game.setScreen(new WorldScreen(game));
@@ -48,6 +51,8 @@ public class SplashScreen extends ScreenAdapter {
     @Override
     public void dispose() {
         batch.dispose();
-        splashImage.dispose();
+        if (splashImage != null) {
+            splashImage.dispose();
+        }
     }
 }

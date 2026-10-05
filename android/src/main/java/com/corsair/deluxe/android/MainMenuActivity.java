@@ -20,8 +20,7 @@ public class MainMenuActivity extends Activity {
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent intent = new Intent(MainMenuActivity.this, AndroidLauncher.class);
-                startActivity(intent);
+                launchGame();
             }
         });
 
@@ -31,5 +30,19 @@ public class MainMenuActivity extends Activity {
                 finish();
             }
         });
+
+        startButton.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                launchGame();
+            }
+        }, 2000);
+    }
+
+    private void launchGame() {
+        Intent intent = new Intent(MainMenuActivity.this, AndroidLauncher.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        startActivity(intent);
+        finish();
     }
 }
