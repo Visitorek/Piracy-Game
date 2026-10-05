@@ -54,31 +54,32 @@ Porty, handel i ekonomia są odłożone na późniejsze, opcjonalne rozszerzenie
 
 ---
 
-## ⚔️ Faza 3: Taktyczny System Bitwy Morskiej w stylu Piracy Deluxe (Tydzień 5 – 8)
+## ⚔️ Faza 3: Bitwa Morska w stylu Piracy Deluxe (statyczna, turowa gra logiczna)
 
-### 3.0 Założenie designowe: gra w formie Piracy Deluxe
-* [x] Odrzucenie klasycznej „przebiegu bitwy w czasie rzeczywistym” na rzecz rozgrywki turnowo-taktycznej inspirowanej **Piracy Deluxe**.
-* [ ] Bitwa prowadzona jest na osobnej mapie taktycznej z widokiem od góry, gdzie gracz zarządza statkiem, kursami, żaglami i salwami zgodnie z zasadą „turn-based tactical naval combat”.
-* [ ] Każdy statek ma wyraźną burtę, przód i tył; atak jest koncentrowany wokół pozycji względem wroga oraz kierunku wiatru.
-* [ ] Główne mechaniki: manewrowanie, ustawienie żagli, strzelanie z burt, uszkodzenia kadłuba/żagli, abordaż i zwycięstwo przez zniszczenie lub przejęcie statku.
+### 3.0 Założenie designowe: bitwa nie jest dynamiczna
+* [x] Odrzucenie klasycznego, płynnego „real-time combat” na rzecz statycznej, turowej gry logicznej inspirowanej układem z **Piracy Deluxe**.
+* [ ] Bitwa rozgrywa się na osobnej, statycznej planszy z prostą siatką, bez ciągłego ruchu kamery i bez animowanego „polowego” ruchu jednostek.
+* [ ] Rozgrywka opiera się na turach: wybór akcji, rozstrzygnięcie logiki, następna tura, bez szybkiej akcji na czas.
+* [ ] Mapa bitwy ma charakter panelu taktycznego: pozycje statków, burty, niszczenie kadłuba, straty załogi i dostępne działania są odczytywane jako dane logiczne, a nie fizyczne.
+* [ ] Główne mechaniki: ustawienie kursu, rozkaz do salwy, przejście na pozycję, uszkodzenia kadłuba/żagli, abordaż i zwycięstwo przez zniszczenie lub przejęcie przeciwnika.
 
 ### 3.1 Arena Taktyczna Bitwy
 * [ ] Inicjalizacja dedykowanego ekranu `BattleScreen` po wykryciu wrogiego statku na mapie świata.
-* [ ] Generowanie mniejszej mapy taktycznej bitwy.
-* [ ] System wiatru: losowanie kierunku i siły wiatru na początku bitwy; wpływ wiatru na liczbę punktów ruchu w zależności od ustawienia żagli.
+* [ ] Generowanie statycznej, mniejszej planszy bitwy z prostą geometrią i widokiem podobnym do ekranu z referencji.
+* [ ] System wiatru jako statyczny parametr rundy: kierunek i siła wiatru wpływają na wynik działań i dostępność ruchu, ale nie powodują płynnej mechaniki z odrywaniem od planszy.
 
 ### 3.2 Mechanika Salw Armatnich i Uszkodzeń
-* [ ] Wyznaczanie stref ostrzału (lewa burta, prawa burta, przód).
+* [ ] Wyznaczanie stref ostrzału (lewa burta, prawa burta, przód, tył).
 * [ ] Wybór typu amunicji:
   * *Kule standardowe* – niszczenie kadłuba.
-  * *Łańcuchy* – niszczenie żagli i odbieranie punktów ruchu.
+  * *Łańcuchy* – niszczenie żagli i obniżanie skuteczności manewru.
   * *Kartonusze / Śrut* – eliminowanie załogi przeciwnika.
-* [ ] Obliczanie szansy na trafienie i obrażeń w oparciu o dystans, wyszkolenie załogi i kąt.
+* [ ] Obliczanie szansy na trafienie i obrażeń w oparciu o odległość, pozycję względem wroga, typ działa i aktualny stan statku.
 
 ### 3.3 Abordaż i Finał Bitwy
-* [ ] Opcja podpłynięcia bezpośrednio do wroga i zainicjowania abordażu.
-* [ ] Automatyczna lub pół-taktyczna rozdzielczość walki wręcz (porównanie liczebności załogi i morale).
-* [ ] Ekran podsumowania wygranej bitwy: przejmowanie złota, towarów z ładowni oraz możliwość przejęcia/zatopienia statku wroga.
+* [ ] Wybór akcji abordażu jako oddzielnej, logicznej decyzji w turze, zamiast dynamicznej kolizji na mapie.
+* [ ] Rozstrzygnięcie walki wręcz na podstawie liczebności załogi, morale i aktualnego stanu jednostek.
+* [ ] Ekran podsumowania wygranej bitwy: przejmowanie złota, zniszczenie lub zdobycie przeciwnika, z zastosowaniem prostego, statycznego rozliczenia logicznego.
 
 ---
 
