@@ -59,30 +59,27 @@ public class WorldScreen extends ScreenAdapter {
 
         shapeRenderer.setProjectionMatrix(camera.combined);
         
-        // Draw filled hexagons
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        
         for (HexTile tile : map.getTiles()) {
             Vector2 pixel = HexMath.hexToPixel(tile.getCoordinate(), 0.72f);
             float centerX = 6f + pixel.x;
             float centerY = 4.2f + pixel.y;
             float radius = 0.70f;
 
-            Color color = colorFor(tile.getTerrain());
-            shapeRenderer.setColor(color.r, color.g, color.b, 0.9f);
+            Color baseColor = colorFor(tile.getTerrain());
+            
+            if (selectedTile != null && selectedTile.equals(tile.getCoordinate())) {
+                shapeRenderer.setColor(1f, 0.98f, 0.7f, 0.8f);
+            } else {
+                shapeRenderer.setColor(baseColor.r, baseColor.g, baseColor.b, 0.9f);
+            }
+            
             shapeRenderer.polygon(buildHexVertices(centerX, centerY, radius));
         }
-
-        if (selectedTile != null) {
-            Vector2 selectedPixel = HexMath.hexToPixel(selectedTile, 0.72f);
-            float selectedX = 6f + selectedPixel.x;
-            float selectedY = 4.2f + selectedPixel.y;
-            shapeRenderer.setColor(1f, 0.98f, 0.7f, 0.6f);
-            shapeRenderer.polygon(buildHexVertices(selectedX, selectedY, 0.70f));
-        }
-
+        
         shapeRenderer.end();
 
-        // Draw routes and ship
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
         if (!route.isEmpty()) {
             shapeRenderer.setColor(1f, 0.9f, 0.2f, 0.8f);
@@ -94,7 +91,6 @@ public class WorldScreen extends ScreenAdapter {
         }
         shapeRenderer.end();
 
-        // Draw ship
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         Vector2 shipPixel = HexMath.hexToPixel(playerShip.getPosition(), 0.72f);
         shapeRenderer.setColor(1f, 0.82f, 0.38f, 1f);
