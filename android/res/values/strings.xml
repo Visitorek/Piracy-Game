@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="app_name">Corsair Deluxe</string>
+  <string name="start_game">Zacznij gre</string>
+  <string name="exit_game">Wyjdz z gry</string>
 </resources>
-

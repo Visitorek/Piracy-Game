@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <ImageView
+        android:id="@+id/menuBackground"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:src="@drawable/menu_background" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <Button
+            android:id="@+id/startGameButton"
+            android:layout_width="360dp"
+            android:layout_height="180dp"
+            android:layout_marginBottom="48dp"
+            android:background="@drawable/menu_button_bg"
+            android:text="@string/start_game"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFFFF"
+            android:textSize="36sp" />
+
+        <Button
+            android:id="@+id/exitGameButton"
+            android:layout_width="360dp"
+            android:layout_height="180dp"
+            android:background="@drawable/menu_button_bg"
+            android:text="@string/exit_game"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFFFF"
+            android:textSize="36sp" />
+    </LinearLayout>
+
+</FrameLayout>
