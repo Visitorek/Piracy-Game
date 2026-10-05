@@ -54,7 +54,13 @@ Porty, handel i ekonomia są odłożone na późniejsze, opcjonalne rozszerzenie
 
 ---
 
-## ⚔️ Faza 3: Taktyczny System Bitwy Morskiej (Tydzień 5 – 8)
+## ⚔️ Faza 3: Taktyczny System Bitwy Morskiej w stylu Piracy Deluxe (Tydzień 5 – 8)
+
+### 3.0 Założenie designowe: gra w formie Piracy Deluxe
+* [x] Odrzucenie klasycznej „przebiegu bitwy w czasie rzeczywistym” na rzecz rozgrywki turnowo-taktycznej inspirowanej **Piracy Deluxe**.
+* [ ] Bitwa prowadzona jest na osobnej mapie taktycznej z widokiem od góry, gdzie gracz zarządza statkiem, kursami, żaglami i salwami zgodnie z zasadą „turn-based tactical naval combat”.
+* [ ] Każdy statek ma wyraźną burtę, przód i tył; atak jest koncentrowany wokół pozycji względem wroga oraz kierunku wiatru.
+* [ ] Główne mechaniki: manewrowanie, ustawienie żagli, strzelanie z burt, uszkodzenia kadłuba/żagli, abordaż i zwycięstwo przez zniszczenie lub przejęcie statku.
 
 ### 3.1 Arena Taktyczna Bitwy
 * [ ] Inicjalizacja dedykowanego ekranu `BattleScreen` po wykryciu wrogiego statku na mapie świata.
