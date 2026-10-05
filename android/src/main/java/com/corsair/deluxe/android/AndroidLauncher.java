@@ -7,6 +7,7 @@ import android.widget.Button;
 import com.badlogic.gdx.backends.android.AndroidApplication;
 import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration;
 import com.corsair.deluxe.CorsairGame;
+import com.corsair.deluxe.R;
 
 /** Launches the Android application. */
 public class AndroidLauncher extends AndroidApplication {
