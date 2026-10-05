@@ -64,7 +64,7 @@ public class WorldScreen extends ScreenAdapter {
             Vector2 pixel = HexMath.hexToPixel(tile.getCoordinate(), 0.72f);
             float centerX = 6f + pixel.x;
             float centerY = 4.2f + pixel.y;
-            float radius = 1.0f;
+            float radius = 0.72f;
 
             shapeRenderer.setColor(colorFor(tile.getTerrain()));
             shapeRenderer.polygon(buildHexVertices(centerX, centerY, radius));
@@ -75,7 +75,7 @@ public class WorldScreen extends ScreenAdapter {
             float selectedX = 6f + selectedPixel.x;
             float selectedY = 4.2f + selectedPixel.y;
             shapeRenderer.setColor(new Color(1f, 0.98f, 0.7f, 0.9f));
-            shapeRenderer.polygon(buildHexVertices(selectedX, selectedY, 1.05f));
+            shapeRenderer.polygon(buildHexVertices(selectedX, selectedY, 0.78f));
         }
 
         if (!route.isEmpty()) {
@@ -83,7 +83,7 @@ public class WorldScreen extends ScreenAdapter {
             for (int i = 0; i < route.size() - 1; i++) {
                 Vector2 from = HexMath.hexToPixel(route.get(i), 0.72f);
                 Vector2 to = HexMath.hexToPixel(route.get(i + 1), 0.72f);
-                shapeRenderer.rectLine(6f + from.x, 4.2f + from.y, 6f + to.x, 4.2f + to.y, 0.15f);
+                shapeRenderer.rectLine(6f + from.x, 4.2f + from.y, 6f + to.x, 4.2f + to.y, 0.12f);
             }
         }
 
