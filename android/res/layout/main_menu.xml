@@ -14,15 +14,17 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:gravity="center"
+        android:gravity="start|top"
         android:orientation="vertical"
-        android:padding="24dp">
+        android:padding="24dp"
+        android:layout_gravity="start|top">
 
         <Button
             android:id="@+id/startGameButton"
             android:layout_width="360dp"
-            android:layout_height="180dp"
+            android:layout_height="120dp"
             android:layout_marginBottom="48dp"
+            android:layout_marginTop="80dp"
             android:background="@drawable/menu_button_bg"
             android:text="@string/start_game"
             android:textAllCaps="false"
@@ -32,7 +34,7 @@
         <Button
             android:id="@+id/exitGameButton"
             android:layout_width="360dp"
-            android:layout_height="180dp"
+            android:layout_height="120dp"
             android:background="@drawable/menu_button_bg"
             android:text="@string/exit_game"
             android:textAllCaps="false"
