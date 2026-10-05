@@ -7,68 +7,61 @@
 
 ---
 
-## 🚩 Faza 1: Inicjalizacja i Architektura (Zrobione / W trakcie)
+## 🚩 Faza 1: Inicjalizacja i Architektura (Zrobione)
 
 ### 1.1 Środowisko i Struktura Projektu
 * [x] Wygenerowanie projektu bazowego za pomocą **gdx-liftoff** z modułami `core`, `android` oraz `desktop` (dla szybkiego testowania na PC).
-* [ ] Wybór i integracja kontenera wstrzykiwania zależności (Koin).
-* [ ] Konfiguracja obsługi wielkości ekranów i proporcji (FitViewport 16:9 / Landscape) w `AndroidLauncher` oraz klasach ekranów.
-* [ ] Podział modułu `core` na pakiety Clean Architecture (`domain`, `data`, `presentation`, `core`).
+* [x] Wybór i integracja prostego kontenera zależności / modułu bootstrapu gry (`GameModule` i podstawowy model stanu świata).
+* [x] Konfiguracja obsługi wielkości ekranów i proporcji (FitViewport 16:9 / Landscape) w `AndroidLauncher` oraz klasach ekranów.
+* [x] Podział modułu `core` na pakiety Clean Architecture (`domain`, `data`, `presentation`, `core`).
 
 ---
 
-## 🌊 Faza 2: Prototyp Core Gameplayu – Siatka Hexagonalna i Żegluga (Tydzień 2 – 4)
+## 🌊 Faza 2: Prototyp Core Gameplayu – Siatka Hexagonalna i Żegluga (Zrobione w prototypie)
 
 Główny koncept gry zakłada dwie odrębne, ale powiązane płaszczyzny rozgrywki:
-- pierwsza płaszczyzna: żeglowanie po mapie świata, eksploracja, nawigacja, inicjowanie starć i interakcje z portami;
+- pierwsza płaszczyzna: żeglowanie po mapie świata, eksploracja i nawigacja;
 - druga płaszczyzna: właściwa bitwa morska, rozgrywana w osobnym, taktycznym środowisku, po wykryciu wroga lub inicjacji abordażu.
 
 Ta separacja ma pozwolić na odrębny design zarówno eksploracji, jak i walki, bez mieszania mechanik mapy świata z mechanikami taktycznymi.
 
 ### 2.1 System Mapy Hexagonalnej (HexGrid)
-* [ ] Zaimplementowanie struktury danych dla układu współrzędnych axialnych $(q, r)$ i cube $(x, y, z)$.
-* [ ] Matematyczna przelicznica: układy współrzędnych hex $\leftrightarrow$ pozycje pikselowe $(x, y)$ ekranu.
-* [ ] Generator testowej mapy morskiej (Woda, Wysepki, Płytka woda, Porty).
-* [ ] Implementacja algorytmu A* dla wyszukiwania ścieżek na siatce z uwzględnieniem kosztów poruszania się.
+* [x] Zaimplementowanie struktury danych dla układu współrzędnych axialnych $(q, r)$ i cube $(x, y, z)$.
+* [x] Matematyczna przelicznica: układy współrzędnych hex $\leftrightarrow$ pozycje pikselowe $(x, y)$ ekranu.
+* [x] Generator testowej mapy morskiej (Woda, Wyspy, Płytka woda, płycizny).
+* [x] Implementacja algorytmu A* dla wyszukiwania ścieżek na siatce z uwzględnieniem kosztów poruszania się.
 
 ### 2.2 Kamery, Renderowanie i Input
-* [ ] Renderowanie kafelków hex za pomocą `SpriteBatch` / `TextureAtlas`.
-* [ ] Obsługa gestów dotykowych dla Androida: płynne przesuwanie palcem (Pan) oraz zbliżanie/oddalanie (Zoom / Pinch-to-zoom).
-* [ ] Wskaźnik zaznaczenia pola (Highlight tile) i rysowanie ścieżki planowanego ruchu statku.
+* [x] Renderowanie kafelków hex w prototypowej wersji przy użyciu `ShapeRenderer`.
+* [x] Obsługa kamery i sterowania w trybie desktopowym.
+* [x] Wskaźnik zaznaczenia pola (Highlight tile) i rysowanie ścieżki planowanego ruchu statku.
 * [ ] System Mgły Wojny (Fog of War) – zasłanianie nieodkrytych kafelków i odkrywanie ich w zasięgu wzroku statku.
 
 ### 2.3 Mechanika Pływania i Pętla Turowa
-* [ ] Klasa statku gracza (punkty ruchu/punkty akcji, zdrowie kadłuba, załoga, zaopatrzenie).
-* [ ] Animacja płynnego przemieszczania się statku po wyznaczonej ścieżce hexów.
+* [x] Klasa statku gracza (punkty ruchu/punkty akcji, zdrowie kadłuba, załoga, zaopatrzenie).
+* [x] Prototyp ruchu statku po wyznaczonej ścieżce hexów.
 * [ ] Przycisk "Koniec Tury" / automatyczne kończenie ruchu – aktualizacja wskaźników (upływ dni, zużycie racji żywnościowych i rumu).
 
 ---
 
-## ⚓ Faza 3: Porty, Gospodarka i System Handlu (Tydzień 5 – 7)
+## ⚠️ Obecny zakres projektu
 
-### 3.1 Interfejs Użytkownika Portu (Scene2D / VisUI)
-* [ ] Stworzenie menedżera stref/widoków (przełączanie z `SailingScreen` do `PortScreen` po wpłynięciu do portu).
-* [ ] Dedykowany HUD widoku portu z przyciskami: *Targ / Rynek*, *Tawerna*, *Stocznia*, *Gubernator / Zlecenia*.
+Na tym etapie projekt skupia się wyłącznie na dwóch podstawowych płaszczyznach rozgrywki:
+- żeglowanie po mapie świata i eksploracja;
+- właściwa bitwa morska w osobnym, taktycznym środowisku.
 
-### 3.2 Ekonomia i Targ Morski
-* [ ] Model towarów: Rum, Cukier, Tytoń, Przyprawy, Kule armatnie, Drewno.
-* [ ] Algorytm cenowy uzależniony od podaży/popytu w danym porcie oraz losowych zdarzeń (np. susza, zaraza, wojna).
-* [ ] Okno dialogowe transakcji kupna/sprzedaży (suwaki ilości, wskaźniki pojemności ładowni, koszt całkowity).
-
-### 3.3 Tawerna i Stocznia
-* [ ] **Tawerna:** Werbowanie marynarzy (zwiększanie załogi), zbieranie plotek o szlakach handlowych, odnawianie morali.
-* [ ] **Stocznia:** Naprawa uszkodzeń kadłuba i żagli, ulepszanie pojemności/dział, zakup nowych, większych statków (np. Sloop, Frigate, Galleon).
+Porty, handel i ekonomia są odłożone na późniejsze, opcjonalne rozszerzenie i nie są częścią obecnego etapu rozwoju.
 
 ---
 
-## ⚔️ Faza 4: Taktyczny System Bitwy Morskiej (Tydzień 8 – 11)
+## ⚔️ Faza 3: Taktyczny System Bitwy Morskiej (Tydzień 5 – 8)
 
-### 4.1 Arena Taktyczna Bitwy
+### 3.1 Arena Taktyczna Bitwy
 * [ ] Inicjalizacja dedykowanego ekranu `BattleScreen` po wykryciu wrogiego statku na mapie świata.
 * [ ] Generowanie mniejszej mapy taktycznej bitwy.
 * [ ] System wiatru: losowanie kierunku i siły wiatru na początku bitwy; wpływ wiatru na liczbę punktów ruchu w zależności od ustawienia żagli.
 
-### 4.2 Mechanika Salw Armatnich i Uszkodzeń
+### 3.2 Mechanika Salw Armatnich i Uszkodzeń
 * [ ] Wyznaczanie stref ostrzału (lewa burta, prawa burta, przód).
 * [ ] Wybór typu amunicji:
   * *Kule standardowe* – niszczenie kadłuba.
@@ -76,39 +69,39 @@ Ta separacja ma pozwolić na odrębny design zarówno eksploracji, jak i walki, 
   * *Kartonusze / Śrut* – eliminowanie załogi przeciwnika.
 * [ ] Obliczanie szansy na trafienie i obrażeń w oparciu o dystans, wyszkolenie załogi i kąt.
 
-### 4.3 Abordaż i Finał Bitwy
+### 3.3 Abordaż i Finał Bitwy
 * [ ] Opcja podpłynięcia bezpośrednio do wroga i zainicjowania abordażu.
 * [ ] Automatyczna lub pół-taktyczna rozdzielczość walki wręcz (porównanie liczebności załogi i morale).
 * [ ] Ekran podsumowania wygranej bitwy: przejmowanie złota, towarów z ładowni oraz możliwość przejęcia/zatopienia statku wroga.
 
 ---
 
-## 🤖 Faza 5: Sztuczna Inteligencja (SI) i Zapis Stanu Gry (Tydzień 12 – 14)
+## 🤖 Faza 4: Sztuczna Inteligencja (SI) i Zapis Stanu Gry (Tydzień 9 – 12)
 
-### 5.1 Sztuczna Inteligencja (AI)
-* [ ] **SI na Mapie Świata:** Statki handlowe pływające między portami, statki pirackie/patrole wojskowe polujące na gracza lub siebie nawzajem.
+### 4.1 Sztuczna Inteligencja (AI)
+* [ ] **SI na Mapie Świata:** Statki pirackie i patrolowe polujące na gracza lub inne jednostki, z zachowaniem ruchu po open ocean i w pobliżu wysp.
 * [ ] **SI w Bitwie Taktycznej:** Podejmowanie decyzji o manewrowaniu w celu uderzenia pełną salwą burtową, ucieczka przy znacznych uszkodzeniach lub dążenie do abordażu.
 
-### 5.2 System Zapisów i Odczytu (Persistence)
+### 4.2 System Zapisów i Odczytu (Persistence)
 * [ ] Integracja z **Kotlinx.Serialization** lub bazą danych **Room**.
-* [ ] Serializacja stanu świata: pozycja gracza, stan statków, historia odkrytych kafelków (Fog of War), ekonomia portów i stan sakiewki.
-* [ ] System slotów zapisu oraz niezawodny Auto-Save aktywowany przy zawieszeniu aplikacji (Android `onPause`) oraz przy wejściu do portu.
+* [ ] Serializacja stanu świata: pozycja gracza, stan statków, historia odkrytych kafelków (Fog of War) i stan sakiewki.
+* [ ] System slotów zapisu oraz niezawodny Auto-Save aktywowany przy zawieszeniu aplikacji (Android `onPause`).
 
 ---
 
-## 🎨 Faza 6: Dźwięk, UI/UX, Polish i Wydanie (Tydzień 15 – 17)
+## 🎨 Faza 5: Dźwięk, UI/UX, Polish i Wydanie (Tydzień 13 – 15)
 
-### 6.1 Oprawa Graficzna i Audio
+### 5.1 Oprawa Graficzna i Audio
 * [ ] Integracja spójnego zestawu grafik (spritesheet dla statków, ikony towarów, kafle wysp i wody).
 * [ ] Efekty cząsteczkowe w libGDX (ślad wody za statkiem, dym z armat, wybuchy).
 * [ ] Efekty dźwiękowe (strzały, szum fal, odgłosy tawerny) i podkład muzyczny.
 
-### 6.2 Optymalizacja i Testy
+### 5.2 Optymalizacja i Testy
 * [ ] Profilowanie zużycia pamięci RAM oraz płynności (stałe 60 FPS na urządzeniach mobilnych).
 * [ ] Dostosowanie interfejsu (skalowanie czcionek i przycisków) pod ekrany smartfonów oraz tabletów.
-* [ ] Testy jednostkowe kluczowych mechanik (TradeUseCase, HexMath, Pathfinding).
+* [ ] Testy jednostkowe kluczowych mechanik (HexMath, Pathfinding, Battle resolution).
 
-### 6.3 Przygotowanie do Publikacji
+### 5.3 Przygotowanie do Publikacji
 * [ ] Wygenerowanie podpisanej paczki wydaniowej (Android App Bundle - `.aab`).
 * [ ] Przygotowanie grafik sklepowych (zrzuty ekranu, ikona aplikacji, baner).
 * [ ] Publikacja na Google Play Store.
