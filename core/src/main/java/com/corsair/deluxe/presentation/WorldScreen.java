@@ -44,6 +44,7 @@ public class WorldScreen extends ScreenAdapter {
         this.shapeRenderer = new ShapeRenderer();
         this.spriteBatch = new SpriteBatch();
         this.font = new BitmapFont();
+        this.font.getData().setScale(0.3f);
         this.font.setColor(Color.WHITE);
         this.map = new HexMap(6);
         this.playerShip = new Ship("Sea Wren");
@@ -105,7 +106,7 @@ public class WorldScreen extends ScreenAdapter {
             float centerX = 6f + pixel.x;
             float centerY = 4.2f + pixel.y;
             String coords = "(" + tile.getCoordinate().getQ() + "," + tile.getCoordinate().getR() + ")";
-            font.draw(spriteBatch, coords, centerX - 0.3f, centerY + 0.15f);
+            font.draw(spriteBatch, coords, centerX - 0.15f, centerY + 0.05f);
         }
         spriteBatch.end();
     }
