@@ -20,10 +20,10 @@
 ## 🌊 Faza 2: Prototyp Core Gameplayu – Siatka Hexagonalna i Żegluga (Zrobione w prototypie)
 
 Główny koncept gry zakłada dwie odrębne, ale powiązane płaszczyzny rozgrywki:
-- pierwsza płaszczyzna: żeglowanie po mapie świata, eksploracja i nawigacja;
-- druga płaszczyzna: właściwa bitwa morska, rozgrywana w osobnym, taktycznym środowisku, po wykryciu wroga lub inicjacji abordażu.
+- pierwsza płaszczyzna: żeglowanie po mapie świata, eksploracja i nawigacja; to jest warstwa "poruszania się statkiem" i inicjacji starcia;
+- druga płaszczyzna: statyczna gra logiczna rozstrzygająca bitwę po wejściu na ekran walki; tutaj nie ma dynamicznych akcji typu salwa, żagiel, kurs w sensie real-time, lecz rozstrzygające decyzje logiczne w turach.
 
-Ta separacja ma pozwolić na odrębny design zarówno eksploracji, jak i walki, bez mieszania mechanik mapy świata z mechanikami taktycznymi.
+Ta separacja ma pozwolić na odrębny design zarówno eksploracji, jak i walki, bez mieszania mechanik mapy świata z mechanikami taktycznymi. Warstwa 1 odpowiada za ruch i wstępne spotkanie, warstwa 2 odpowiada wyłącznie za rozstrzygnięcie konfliktu.
 
 ### 2.1 System Mapy Hexagonalnej (HexGrid)
 * [x] Zaimplementowanie struktury danych dla układu współrzędnych axialnych $(q, r)$ i cube $(x, y, z)$.
@@ -56,30 +56,27 @@ Porty, handel i ekonomia są odłożone na późniejsze, opcjonalne rozszerzenie
 
 ## ⚔️ Faza 3: Bitwa Morska w stylu Piracy Deluxe (statyczna, turowa gra logiczna)
 
-### 3.0 Założenie designowe: bitwa nie jest dynamiczna
+### 3.0 Założenie designowe: bitwa jest statyczna i logiczna
 * [x] Odrzucenie klasycznego, płynnego „real-time combat” na rzecz statycznej, turowej gry logicznej inspirowanej układem z **Piracy Deluxe**.
-* [ ] Bitwa rozgrywa się na osobnej, statycznej planszy z prostą siatką, bez ciągłego ruchu kamery i bez animowanego „polowego” ruchu jednostek.
+* [ ] Po wejściu w konflikt gra przechodzi do osobnego ekranu walki, który jest statycznym panelem rozstrzygającym wynik starcia. W tej warstwie nie ma ruchu jednostek po planszy ani akcji typu salwa / kurs / żagiel w sensie real-time.
 * [ ] Rozgrywka opiera się na turach: wybór akcji, rozstrzygnięcie logiki, następna tura, bez szybkiej akcji na czas.
-* [ ] Mapa bitwy ma charakter panelu taktycznego: pozycje statków, burty, niszczenie kadłuba, straty załogi i dostępne działania są odczytywane jako dane logiczne, a nie fizyczne.
-* [ ] Główne mechaniki: ustawienie kursu, rozkaz do salwy, przejście na pozycję, uszkodzenia kadłuba/żagli, abordaż i zwycięstwo przez zniszczenie lub przejęcie przeciwnika.
+* [ ] Mapa bitwy ma charakter panelu decyzyjnego: pozycje statków, burty, niszczenie kadłuba, straty załogi i dostępne decyzje są odczytywane jako dane logiczne, a nie fizyczne.
+* [ ] Działania w tej warstwie są jedynie narzędziem rozstrzygnięcia starcia; nie pełnią funkcji „walki w czasie”.
 
 ### 3.1 Arena Taktyczna Bitwy
 * [ ] Inicjalizacja dedykowanego ekranu `BattleScreen` po wykryciu wrogiego statku na mapie świata.
 * [ ] Generowanie statycznej, mniejszej planszy bitwy z prostą geometrią i widokiem podobnym do ekranu z referencji.
 * [ ] System wiatru jako statyczny parametr rundy: kierunek i siła wiatru wpływają na wynik działań i dostępność ruchu, ale nie powodują płynnej mechaniki z odrywaniem od planszy.
 
-### 3.2 Mechanika Salw Armatnich i Uszkodzeń
-* [ ] Wyznaczanie stref ostrzału (lewa burta, prawa burta, przód, tył).
-* [ ] Wybór typu amunicji:
-  * *Kule standardowe* – niszczenie kadłuba.
-  * *Łańcuchy* – niszczenie żagli i obniżanie skuteczności manewru.
-  * *Kartonusze / Śrut* – eliminowanie załogi przeciwnika.
-* [ ] Obliczanie szansy na trafienie i obrażeń w oparciu o odległość, pozycję względem wroga, typ działa i aktualny stan statku.
+### 3.2 Mechanika Rozstrzygająca Bitwę
+* [ ] Wyznaczanie stref ostrzału (lewa burta, prawa burta, przód, tył) jako danych logicznych dla rozliczenia tur.
+* [ ] Wybór akcji w turze z użyciem prostych, statycznych parametrów konfliktu, np. atak, obrona, manewr, abordaż, zrezygnowanie z walki.
+* [ ] Obliczanie szansy na trafienie i obrażeń w oparciu o odległość, pozycję względem wroga, stan statku i aktualne morale załogi.
 
 ### 3.3 Abordaż i Finał Bitwy
 * [ ] Wybór akcji abordażu jako oddzielnej, logicznej decyzji w turze, zamiast dynamicznej kolizji na mapie.
 * [ ] Rozstrzygnięcie walki wręcz na podstawie liczebności załogi, morale i aktualnego stanu jednostek.
-* [ ] Ekran podsumowania wygranej bitwy: przejmowanie złota, zniszczenie lub zdobycie przeciwnika, z zastosowaniem prostego, statycznego rozliczenia logicznego.
+* [ ] Ekran podsumowania wygranej bitwy: przejmowanie łupu, zniszczenie lub zdobycie przeciwnika, z zastosowaniem prostego, statycznego rozliczenia logicznego.
 
 ---
 
