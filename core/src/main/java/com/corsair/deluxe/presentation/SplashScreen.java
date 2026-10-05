@@ -41,7 +41,7 @@ public class SplashScreen extends ScreenAdapter {
         batch.end();
 
         if (elapsed >= 3f) {
-            game.setScreen(new MainMenuScreen(game));
+            game.setScreen(new WorldScreen(game));
         }
     }
 
@@ -51,5 +51,3 @@ public class SplashScreen extends ScreenAdapter {
         splashImage.dispose();
     }
 }
-
-
