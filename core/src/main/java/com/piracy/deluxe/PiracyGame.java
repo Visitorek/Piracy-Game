@@ -1,32 +1,18 @@
 package com.piracy.deluxe;
 
-import com.badlogic.gdx.ApplicationAdapter;
-import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.utils.ScreenUtils;
+import com.badlogic.gdx.Game;
+import com.piracy.deluxe.core.GameModule;
+import com.piracy.deluxe.presentation.WorldScreen;
 
-/** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
-public class PiracyGame extends ApplicationAdapter {
-    private SpriteBatch batch;
-    private Texture image;
-
+/**
+ * Main entry point for the game. The game is structured around two layers:
+ * 1. world exploration / sailing / encounter initiation
+ * 2. tactical battle screen
+ */
+public class PiracyGame extends Game {
     @Override
     public void create() {
-        batch = new SpriteBatch();
-        image = new Texture("libgdx.png");
-    }
-
-    @Override
-    public void render() {
-        ScreenUtils.clear(0.15f, 0.15f, 0.2f, 1f);
-        batch.begin();
-        batch.draw(image, 140, 210);
-        batch.end();
-    }
-
-    @Override
-    public void dispose() {
-        batch.dispose();
-        image.dispose();
+        GameModule.getInstance();
+        setScreen(new WorldScreen(this));
     }
 }
