@@ -111,7 +111,13 @@ public class TouchInputHandler extends InputAdapter {
 
         HexCoordinate tappedHex = HexMath.pixelToHex(worldX, worldY, 0.72f);
         if (tappedHex != null) {
-            worldScreen.selectTile(tappedHex);
+            HexCoordinate currentSelected = worldScreen.getSelectedTile();
+            if (currentSelected != null && currentSelected.equals(tappedHex)
+                    && !tappedHex.equals(worldScreen.getPlayerShip().getPosition())) {
+                worldScreen.moveTo(tappedHex);
+            } else {
+                worldScreen.selectTile(tappedHex);
+            }
         }
     }
 
