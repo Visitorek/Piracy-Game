@@ -3,7 +3,9 @@ package com.corsair.deluxe.presentation;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
@@ -11,7 +13,6 @@ import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
-import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.corsair.deluxe.CorsairGame;
 
@@ -19,12 +20,16 @@ public class MainMenuScreen extends ScreenAdapter {
     private final CorsairGame game;
     private final Stage stage;
     private final Skin skin;
+    private final SpriteBatch backgroundBatch;
+    private final Texture background;
     private BitmapFont font;
 
     public MainMenuScreen(CorsairGame game) {
         this.game = game;
         this.stage = new Stage(new ScreenViewport());
         this.skin = new Skin();
+        this.backgroundBatch = new SpriteBatch();
+        this.background = new Texture("menu_background.jpg");
 
         this.font = new BitmapFont();
         this.font.getData().setScale(1.6f);
@@ -67,7 +72,21 @@ public class MainMenuScreen extends ScreenAdapter {
 
     @Override
     public void render(float delta) {
-        ScreenUtils.clear(0.04f, 0.11f, 0.18f, 1f);
+        float screenW = Gdx.graphics.getWidth();
+        float screenH = Gdx.graphics.getHeight();
+        float imageW = background.getWidth();
+        float imageH = background.getHeight();
+
+        float scale = Math.max(screenW / imageW, screenH / imageH);
+        float drawW = imageW * scale;
+        float drawH = imageH * scale;
+        float drawX = (screenW - drawW) / 2f;
+        float drawY = (screenH - drawH) / 2f;
+
+        backgroundBatch.begin();
+        backgroundBatch.draw(background, drawX, drawY, drawW, drawH);
+        backgroundBatch.end();
+
         stage.act(delta);
         stage.draw();
     }
@@ -86,6 +105,8 @@ public class MainMenuScreen extends ScreenAdapter {
     public void dispose() {
         stage.dispose();
         skin.dispose();
+        backgroundBatch.dispose();
+        background.dispose();
         if (font != null) {
             font.dispose();
             font = null;
