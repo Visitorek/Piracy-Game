@@ -51,7 +51,7 @@ public class WorldScreen extends ScreenAdapter {
         ScreenUtils.clear(0.05f, 0.19f, 0.33f, 1f);
 
         shapeRenderer.setProjectionMatrix(camera.combined);
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
 
         for (HexTile tile : map.getTiles()) {
             Vector2 pixel = HexMath.hexToPixel(tile.getCoordinate(), 0.72f);
@@ -181,3 +181,4 @@ public class WorldScreen extends ScreenAdapter {
         shapeRenderer.dispose();
     }
 }
+
