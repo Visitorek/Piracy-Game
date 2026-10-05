@@ -158,6 +158,10 @@ public class WorldScreen extends ScreenAdapter {
                 }
             }
         }
+
+        if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.B)) {
+            game.setScreen(new BattleScreen(game));
+        }
     }
 
     private void selectNeighbor(HexDirection direction) {
@@ -177,5 +181,3 @@ public class WorldScreen extends ScreenAdapter {
         shapeRenderer.dispose();
     }
 }
-
-
