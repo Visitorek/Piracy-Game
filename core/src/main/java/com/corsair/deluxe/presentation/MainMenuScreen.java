@@ -68,7 +68,8 @@ public class MainMenuScreen extends ScreenAdapter {
 
         Table table = new Table();
         table.setFillParent(true);
-        table.center();
+        table.top().left();
+        table.pad(150f, 80f, 0f, 0f);
         table.add(startButton).width(980f).height(220f).padBottom(90f).row();
         table.add(exitButton).width(980f).height(220f);
 
