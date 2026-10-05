@@ -58,29 +58,23 @@ public class WorldScreen extends ScreenAdapter {
         ScreenUtils.clear(0.05f, 0.19f, 0.33f, 1f);
 
         shapeRenderer.setProjectionMatrix(camera.combined);
-        
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+
         for (HexTile tile : map.getTiles()) {
             Vector2 pixel = HexMath.hexToPixel(tile.getCoordinate(), 0.72f);
             float centerX = 6f + pixel.x;
             float centerY = 4.2f + pixel.y;
-            float radius = 0.70f;
 
-            Color baseColor = colorFor(tile.getTerrain());
-            
             if (selectedTile != null && selectedTile.equals(tile.getCoordinate())) {
                 shapeRenderer.setColor(1f, 0.98f, 0.7f, 0.8f);
             } else {
-                shapeRenderer.setColor(baseColor.r, baseColor.g, baseColor.b, 0.9f);
+                Color color = colorFor(tile.getTerrain());
+                shapeRenderer.setColor(color.r, color.g, color.b, 0.6f);
             }
-            
-            shapeRenderer.polygon(buildHexVertices(centerX, centerY, radius));
-        }
-        
-        shapeRenderer.end();
 
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+            drawHexOutline(centerX, centerY, 0.70f);
+        }
+
         if (!route.isEmpty()) {
             shapeRenderer.setColor(1f, 0.9f, 0.2f, 0.8f);
             for (int i = 0; i < route.size() - 1; i++) {
@@ -89,13 +83,21 @@ public class WorldScreen extends ScreenAdapter {
                 shapeRenderer.rectLine(6f + from.x, 4.2f + from.y, 6f + to.x, 4.2f + to.y, 0.1f);
             }
         }
-        shapeRenderer.end();
 
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         Vector2 shipPixel = HexMath.hexToPixel(playerShip.getPosition(), 0.72f);
         shapeRenderer.setColor(1f, 0.82f, 0.38f, 1f);
         shapeRenderer.circle(6f + shipPixel.x, 4.2f + shipPixel.y, 0.3f);
+
         shapeRenderer.end();
+    }
+
+    private void drawHexOutline(float centerX, float centerY, float radius) {
+        float[] vertices = buildHexVertices(centerX, centerY, radius);
+        for (int i = 0; i < 6; i++) {
+            int next = (i + 1) % 6;
+            shapeRenderer.line(vertices[i * 2], vertices[i * 2 + 1],
+                    vertices[next * 2], vertices[next * 2 + 1]);
+        }
     }
 
     private float[] buildHexVertices(float centerX, float centerY, float radius) {
