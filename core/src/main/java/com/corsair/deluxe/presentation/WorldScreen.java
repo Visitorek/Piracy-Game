@@ -65,22 +65,10 @@ public class WorldScreen extends ScreenAdapter {
             Vector2 pixel = HexMath.hexToPixel(tile.getCoordinate(), 0.72f);
             float centerX = 6f + pixel.x;
             float centerY = 4.2f + pixel.y;
-            float radius = 0.68f;
+            float radius = 0.70f;
 
-            shapeRenderer.setColor(colorFor(tile.getTerrain()));
-            shapeRenderer.polygon(buildHexVertices(centerX, centerY, radius));
-        }
-        shapeRenderer.end();
-
-        // Draw hex outlines
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        for (HexTile tile : map.getTiles()) {
-            Vector2 pixel = HexMath.hexToPixel(tile.getCoordinate(), 0.72f);
-            float centerX = 6f + pixel.x;
-            float centerY = 4.2f + pixel.y;
-            float radius = 0.68f;
-
-            shapeRenderer.setColor(new Color(0.1f, 0.3f, 0.5f, 0.5f));
+            Color color = colorFor(tile.getTerrain());
+            shapeRenderer.setColor(color.r, color.g, color.b, 0.9f);
             shapeRenderer.polygon(buildHexVertices(centerX, centerY, radius));
         }
 
@@ -88,21 +76,28 @@ public class WorldScreen extends ScreenAdapter {
             Vector2 selectedPixel = HexMath.hexToPixel(selectedTile, 0.72f);
             float selectedX = 6f + selectedPixel.x;
             float selectedY = 4.2f + selectedPixel.y;
-            shapeRenderer.setColor(new Color(1f, 0.98f, 0.7f, 0.8f));
-            shapeRenderer.polygon(buildHexVertices(selectedX, selectedY, 0.72f));
+            shapeRenderer.setColor(1f, 0.98f, 0.7f, 0.6f);
+            shapeRenderer.polygon(buildHexVertices(selectedX, selectedY, 0.70f));
         }
 
+        shapeRenderer.end();
+
+        // Draw routes and ship
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
         if (!route.isEmpty()) {
-            shapeRenderer.setColor(new Color(1f, 0.9f, 0.2f, 0.8f));
+            shapeRenderer.setColor(1f, 0.9f, 0.2f, 0.8f);
             for (int i = 0; i < route.size() - 1; i++) {
                 Vector2 from = HexMath.hexToPixel(route.get(i), 0.72f);
                 Vector2 to = HexMath.hexToPixel(route.get(i + 1), 0.72f);
                 shapeRenderer.rectLine(6f + from.x, 4.2f + from.y, 6f + to.x, 4.2f + to.y, 0.1f);
             }
         }
+        shapeRenderer.end();
 
+        // Draw ship
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         Vector2 shipPixel = HexMath.hexToPixel(playerShip.getPosition(), 0.72f);
-        shapeRenderer.setColor(new Color(1f, 0.82f, 0.38f, 1f));
+        shapeRenderer.setColor(1f, 0.82f, 0.38f, 1f);
         shapeRenderer.circle(6f + shipPixel.x, 4.2f + shipPixel.y, 0.3f);
         shapeRenderer.end();
     }
