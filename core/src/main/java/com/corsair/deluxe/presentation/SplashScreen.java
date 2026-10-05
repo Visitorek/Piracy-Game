@@ -6,7 +6,6 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.corsair.deluxe.CorsairGame;
-import com.corsair.deluxe.presentation.WorldScreen;
 
 public class SplashScreen extends ScreenAdapter {
     private final CorsairGame game;
@@ -44,7 +43,7 @@ public class SplashScreen extends ScreenAdapter {
         }
 
         if (elapsed >= 3f) {
-            game.setScreen(new WorldScreen(game));
+            game.setScreen(new MainMenuScreen(game));
         }
     }
 
