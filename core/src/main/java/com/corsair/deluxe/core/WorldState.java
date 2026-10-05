@@ -1,4 +1,4 @@
-package com.piracy.deluxe.core;
+package com.corsair.deluxe.core;
 
 public class WorldState {
     private int day = 1;
@@ -29,3 +29,5 @@ public class WorldState {
         currentTurn += 1;
     }
 }
+
+

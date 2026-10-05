@@ -7,7 +7,7 @@ buildscript {
     maven { url = 'https://central.sonatype.com/repository/maven-snapshots/' }
   }
   dependencies {
-    classpath "com.android.tools.build:gradle:8.9.3"
+    classpath 'com.android.tools.build:gradle:8.13.2'
     classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
 
   }
@@ -57,12 +57,12 @@ configure(subprojects - project(':android')) {
   }
   compileKotlin.compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
   compileTestKotlin.compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
-  
+
 }
 
 subprojects {
   version = "$projectVersion"
-  ext.appName = 'Piracy Deluxe'
+  ext.appName = 'Corsair Deluxe'
   repositories {
     mavenCentral()
     // You may want to remove the following line if you have errors downloading dependencies.
@@ -72,4 +72,5 @@ subprojects {
   }
 }
 
-eclipse.project.name = 'Piracy Deluxe' + '-parent'
+eclipse.project.name = 'Corsair Deluxe' + '-parent'
+

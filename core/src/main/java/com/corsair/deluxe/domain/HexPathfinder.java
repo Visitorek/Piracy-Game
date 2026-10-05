@@ -1,4 +1,4 @@
-package com.piracy.deluxe.domain;
+package com.corsair.deluxe.domain;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -101,3 +101,5 @@ public final class HexPathfinder {
         }
     }
 }
+
+

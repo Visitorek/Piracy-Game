@@ -1,4 +1,4 @@
-package com.piracy.deluxe.core;
+package com.corsair.deluxe.core;
 
 public final class GameModule {
     private static final GameModule INSTANCE = new GameModule();
@@ -16,3 +16,5 @@ public final class GameModule {
         return worldState;
     }
 }
+
+

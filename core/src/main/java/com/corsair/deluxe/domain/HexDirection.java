@@ -1,4 +1,4 @@
-package com.piracy.deluxe.domain;
+package com.corsair.deluxe.domain;
 
 public enum HexDirection {
     NE(1, -1),
@@ -20,3 +20,5 @@ public enum HexDirection {
         return new HexCoordinate(q, r);
     }
 }
+
+

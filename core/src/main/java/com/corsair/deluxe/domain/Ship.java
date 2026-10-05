@@ -1,4 +1,4 @@
-package com.piracy.deluxe.domain;
+package com.corsair.deluxe.domain;
 
 public class Ship {
     private final String name;
@@ -75,3 +75,5 @@ public class Ship {
         this.rum = rum;
     }
 }
+
+

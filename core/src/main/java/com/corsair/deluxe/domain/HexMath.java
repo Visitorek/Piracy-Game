@@ -1,4 +1,4 @@
-package com.piracy.deluxe.domain;
+package com.corsair.deluxe.domain;
 
 import com.badlogic.gdx.math.Vector2;
 
@@ -41,3 +41,5 @@ public final class HexMath {
         return new HexCoordinate((int) roundedX, (int) roundedZ);
     }
 }
+
+

@@ -1,4 +1,3 @@
-
 buildscript {
   repositories {
     mavenCentral()
@@ -9,7 +8,7 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
 android {
-  namespace = "com.piracy.deluxe"
+  namespace = "com.corsair.deluxe"
   compileSdk 36
   sourceSets {
     main {
@@ -31,7 +30,7 @@ android {
 		}
   }
   defaultConfig {
-    applicationId 'com.piracy.deluxe'
+    applicationId 'com.corsair.deluxe'
     minSdkVersion 21
     targetSdkVersion 36
     versionCode 1
@@ -126,7 +125,8 @@ tasks.register('run', Exec) {
   }
 
   def adb = path + "/platform-tools/adb"
-  commandLine "$adb", 'shell', 'am', 'start', '-n', 'com.piracy.deluxe/com.piracy.deluxe.android.AndroidLauncher'
+  commandLine "$adb", 'shell', 'am', 'start', '-n', 'com.corsair.deluxe/com.corsair.deluxe.android.AndroidLauncher'
 }
 
 eclipse.project.name = appName + "-android"
+

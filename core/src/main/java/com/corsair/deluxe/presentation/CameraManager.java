@@ -1,4 +1,4 @@
-package com.piracy.deluxe.presentation;
+package com.corsair.deluxe.presentation;
 
 import com.badlogic.gdx.graphics.OrthographicCamera;
 
@@ -26,3 +26,4 @@ public class CameraManager {
         camera.zoom = Math.max(0.75f, Math.min(2.0f, camera.zoom + amount));
     }
 }
+

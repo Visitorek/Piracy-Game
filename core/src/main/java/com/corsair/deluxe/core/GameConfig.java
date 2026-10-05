@@ -1,4 +1,4 @@
-package com.piracy.deluxe.core;
+package com.corsair.deluxe.core;
 
 public final class GameConfig {
     public static final float VIEWPORT_WIDTH = 16f;
@@ -9,3 +9,5 @@ public final class GameConfig {
     private GameConfig() {
     }
 }
+
+

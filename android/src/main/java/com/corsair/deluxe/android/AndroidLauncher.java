@@ -1,10 +1,10 @@
-package com.piracy.deluxe.android;
+package com.corsair.deluxe.android;
 
 import android.os.Bundle;
 
 import com.badlogic.gdx.backends.android.AndroidApplication;
 import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration;
-import com.piracy.deluxe.PiracyGame;
+import com.corsair.deluxe.CorsairGame;
 
 /** Launches the Android application. */
 public class AndroidLauncher extends AndroidApplication {
@@ -13,6 +13,6 @@ public class AndroidLauncher extends AndroidApplication {
         super.onCreate(savedInstanceState);
         AndroidApplicationConfiguration configuration = new AndroidApplicationConfiguration();
         configuration.useImmersiveMode = true; // Recommended, but not required.
-        initialize(new PiracyGame(), configuration);
+        initialize(new CorsairGame(), configuration);
     }
 }

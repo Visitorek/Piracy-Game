@@ -1,4 +1,4 @@
-package com.piracy.deluxe.domain;
+package com.corsair.deluxe.domain;
 
 public class HexTile {
     public enum Terrain {
@@ -23,3 +23,5 @@ public class HexTile {
         return terrain;
     }
 }
+
+

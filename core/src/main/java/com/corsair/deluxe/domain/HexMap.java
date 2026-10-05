@@ -1,4 +1,4 @@
-package com.piracy.deluxe.domain;
+package com.corsair.deluxe.domain;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -88,3 +88,5 @@ public class HexMap {
         return value + radius;
     }
 }
+
+

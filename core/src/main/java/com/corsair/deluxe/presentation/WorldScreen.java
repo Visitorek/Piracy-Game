@@ -1,4 +1,4 @@
-package com.piracy.deluxe.presentation;
+package com.corsair.deluxe.presentation;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.ScreenAdapter;
@@ -7,21 +7,21 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.piracy.deluxe.PiracyGame;
-import com.piracy.deluxe.core.GameConfig;
-import com.piracy.deluxe.domain.HexCoordinate;
-import com.piracy.deluxe.domain.HexDirection;
-import com.piracy.deluxe.domain.HexMap;
-import com.piracy.deluxe.domain.HexMath;
-import com.piracy.deluxe.domain.HexPathfinder;
-import com.piracy.deluxe.domain.HexTile;
-import com.piracy.deluxe.domain.Ship;
+import com.corsair.deluxe.CorsairGame;
+import com.corsair.deluxe.core.GameConfig;
+import com.corsair.deluxe.domain.HexCoordinate;
+import com.corsair.deluxe.domain.HexDirection;
+import com.corsair.deluxe.domain.HexMap;
+import com.corsair.deluxe.domain.HexMath;
+import com.corsair.deluxe.domain.HexPathfinder;
+import com.corsair.deluxe.domain.HexTile;
+import com.corsair.deluxe.domain.Ship;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class WorldScreen extends ScreenAdapter {
-    private final PiracyGame game;
+    private final CorsairGame game;
     private final OrthographicCamera camera;
     private final CameraManager cameraManager;
     private final ShapeRenderer shapeRenderer;
@@ -30,7 +30,7 @@ public class WorldScreen extends ScreenAdapter {
     private HexCoordinate selectedTile;
     private List<HexCoordinate> route = new ArrayList<HexCoordinate>();
 
-    public WorldScreen(PiracyGame game) {
+    public WorldScreen(CorsairGame game) {
         this.game = game;
         this.camera = new OrthographicCamera();
         this.camera.setToOrtho(false, GameConfig.VIEWPORT_WIDTH, GameConfig.VIEWPORT_HEIGHT);
@@ -177,3 +177,5 @@ public class WorldScreen extends ScreenAdapter {
         shapeRenderer.dispose();
     }
 }
+
+
