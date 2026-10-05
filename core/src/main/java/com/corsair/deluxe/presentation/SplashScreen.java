@@ -23,7 +23,7 @@ public class SplashScreen extends ScreenAdapter {
     public void render(float delta) {
         elapsed += delta;
 
-        ScreenUtils.clear(0f, 0f, 0f, 1f);
+        ScreenUtils.clear(0.10f, 0.23f, 0.39f, 1f);
 
         float screenW = Gdx.graphics.getWidth();
         float screenH = Gdx.graphics.getHeight();
@@ -51,3 +51,4 @@ public class SplashScreen extends ScreenAdapter {
         splashImage.dispose();
     }
 }
+
