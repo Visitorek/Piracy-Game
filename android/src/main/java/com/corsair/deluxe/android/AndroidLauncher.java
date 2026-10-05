@@ -11,10 +11,17 @@ import com.corsair.deluxe.R;
 
 /** Launches the Android application. */
 public class AndroidLauncher extends AndroidApplication {
+    private boolean gameStarted;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        showMainMenu();
+    }
+
+    private void showMainMenu() {
+        gameStarted = false;
         setContentView(R.layout.main_menu);
 
         Button startButton = findViewById(R.id.startGameButton);
@@ -38,6 +45,25 @@ public class AndroidLauncher extends AndroidApplication {
     private void launchGame() {
         AndroidApplicationConfiguration configuration = new AndroidApplicationConfiguration();
         configuration.useImmersiveMode = true;
+        gameStarted = true;
         initialize(new CorsairGame(), configuration);
+    }
+
+    @Override
+    protected void onResume() {
+        if (gameStarted) {
+            super.onResume();
+        } else {
+            showMainMenu();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        if (gameStarted) {
+            super.onPause();
+        } else {
+            super.onPause();
+        }
     }
 }
