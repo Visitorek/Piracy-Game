@@ -4,51 +4,86 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
-import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.Table;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.ScreenUtils;
+import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.corsair.deluxe.CorsairGame;
 
 public class MainMenuScreen extends ScreenAdapter {
     private final CorsairGame game;
-    private final SpriteBatch batch;
-    private final BitmapFont font;
+    private final Stage stage;
+    private final Skin skin;
 
     public MainMenuScreen(CorsairGame game) {
         this.game = game;
-        this.batch = new SpriteBatch();
-        this.font = new BitmapFont();
-        this.font.getData().setScale(1.8f);
-        this.font.setColor(Color.WHITE);
+        this.stage = new Stage(new ScreenViewport());
+        this.skin = new Skin();
+
+        BitmapFont font = new BitmapFont();
+        font.getData().setScale(1.6f);
+
+        TextButtonStyle buttonStyle = new TextButtonStyle();
+        buttonStyle.font = font;
+        buttonStyle.fontColor = Color.WHITE;
+        skin.add("default", buttonStyle);
+
+        TextButton startButton = new TextButton("Zacznij gre", skin);
+        TextButton exitButton = new TextButton("Wyjdz z gry", skin);
+
+        startButton.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                game.setScreen(new WorldScreen(game));
+            }
+        });
+
+        exitButton.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                Gdx.app.exit();
+            }
+        });
+
+        Table table = new Table();
+        table.setFillParent(true);
+        table.center();
+        table.add(startButton).width(300f).height(70f).padBottom(30f).row();
+        table.add(exitButton).width(300f).height(70f);
+
+        stage.addActor(table);
+    }
+
+    @Override
+    public void show() {
+        Gdx.input.setInputProcessor(stage);
     }
 
     @Override
     public void render(float delta) {
-        if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.NUM_1)) {
-            game.setScreen(new WorldScreen(game));
-            return;
-        }
-        if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.NUM_2)
-            || Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.ESCAPE)) {
-            Gdx.app.exit();
-            return;
-        }
-
         ScreenUtils.clear(0.04f, 0.11f, 0.18f, 1f);
+        stage.act(delta);
+        stage.draw();
+    }
 
-        float centerX = Gdx.graphics.getWidth() / 2f;
-        float centerY = Gdx.graphics.getHeight() / 2f;
+    @Override
+    public void resize(int width, int height) {
+        stage.getViewport().update(width, height, true);
+    }
 
-        batch.begin();
-        font.draw(batch, "C O R S A I R   D E L U X E", centerX - 250f, centerY + 140f);
-        font.draw(batch, "1. Zacznij gre", centerX - 140f, centerY + 20f);
-        font.draw(batch, "2. Wyjdz z gry", centerX - 140f, centerY - 40f);
-        font.draw(batch, "Wybierz opcje klawiszami 1 / 2", centerX - 220f, centerY - 140f);
-        batch.end();
+    @Override
+    public void hide() {
+        Gdx.input.setInputProcessor(null);
     }
 
     @Override
     public void dispose() {
-        batch.dispose();
-        font.dispose();
+        stage.dispose();
+        skin.dispose();
     }
 }
