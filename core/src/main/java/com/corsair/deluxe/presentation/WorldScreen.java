@@ -4,6 +4,8 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.ScreenUtils;
@@ -25,6 +27,8 @@ public class WorldScreen extends ScreenAdapter {
     private final OrthographicCamera camera;
     private final CameraManager cameraManager;
     private final ShapeRenderer shapeRenderer;
+    private final SpriteBatch spriteBatch;
+    private final BitmapFont font;
     private final HexMap map;
     private final Ship playerShip;
     private HexCoordinate selectedTile;
@@ -38,6 +42,9 @@ public class WorldScreen extends ScreenAdapter {
         this.camera.position.set(GameConfig.VIEWPORT_WIDTH / 2f, GameConfig.VIEWPORT_HEIGHT / 2f, 0f);
         this.cameraManager = new CameraManager(camera);
         this.shapeRenderer = new ShapeRenderer();
+        this.spriteBatch = new SpriteBatch();
+        this.font = new BitmapFont();
+        this.font.setColor(Color.WHITE);
         this.map = new HexMap(6);
         this.playerShip = new Ship("Sea Wren");
         this.playerShip.setPosition(new HexCoordinate(0, 0));
@@ -89,6 +96,18 @@ public class WorldScreen extends ScreenAdapter {
         shapeRenderer.circle(6f + shipPixel.x, 4.2f + shipPixel.y, 0.3f);
 
         shapeRenderer.end();
+
+        // Draw coordinates on hexes
+        spriteBatch.setProjectionMatrix(camera.combined);
+        spriteBatch.begin();
+        for (HexTile tile : map.getTiles()) {
+            Vector2 pixel = HexMath.hexToPixel(tile.getCoordinate(), 0.72f);
+            float centerX = 6f + pixel.x;
+            float centerY = 4.2f + pixel.y;
+            String coords = "(" + tile.getCoordinate().getQ() + "," + tile.getCoordinate().getR() + ")";
+            font.draw(spriteBatch, coords, centerX - 0.3f, centerY + 0.15f);
+        }
+        spriteBatch.end();
     }
 
     private void drawHexOutline(float centerX, float centerY, float radius) {
@@ -193,6 +212,8 @@ public class WorldScreen extends ScreenAdapter {
     @Override
     public void dispose() {
         shapeRenderer.dispose();
+        spriteBatch.dispose();
+        font.dispose();
         touchInputHandler.dispose();
     }
 
