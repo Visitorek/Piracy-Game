@@ -1,27 +1,17 @@
 package com.corsair.deluxe.android;
 
+import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 
-import com.badlogic.gdx.backends.android.AndroidApplication;
-import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration;
-import com.corsair.deluxe.CorsairGame;
 import com.corsair.deluxe.R;
 
-/** Launches the Android application. */
-public class AndroidLauncher extends AndroidApplication {
-    private boolean gameStarted;
-
+public class AndroidLauncher extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        showMainMenu();
-    }
-
-    private void showMainMenu() {
-        gameStarted = false;
         setContentView(R.layout.main_menu);
 
         Button startButton = findViewById(R.id.startGameButton);
@@ -30,7 +20,8 @@ public class AndroidLauncher extends AndroidApplication {
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                launchGame();
+                Intent intent = new Intent(AndroidLauncher.this, GameActivity.class);
+                startActivity(intent);
             }
         });
 
@@ -40,30 +31,5 @@ public class AndroidLauncher extends AndroidApplication {
                 finish();
             }
         });
-    }
-
-    private void launchGame() {
-        AndroidApplicationConfiguration configuration = new AndroidApplicationConfiguration();
-        configuration.useImmersiveMode = true;
-        gameStarted = true;
-        initialize(new CorsairGame(), configuration);
-    }
-
-    @Override
-    protected void onResume() {
-        if (gameStarted) {
-            super.onResume();
-        } else {
-            showMainMenu();
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        if (gameStarted) {
-            super.onPause();
-        } else {
-            super.onPause();
-        }
     }
 }
