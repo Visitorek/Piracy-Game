@@ -44,7 +44,7 @@ public class WorldScreen extends ScreenAdapter {
         this.shapeRenderer = new ShapeRenderer();
         this.spriteBatch = new SpriteBatch();
         this.font = new BitmapFont();
-        this.font.getData().setScale(0.3f);
+        this.font.getData().setScale(0.008f);
         this.font.setColor(Color.WHITE);
         this.map = new HexMap(6);
         this.playerShip = new Ship("Sea Wren");
