@@ -4,8 +4,6 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.g2d.BitmapFont;
-import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.ScreenUtils;
@@ -27,8 +25,6 @@ public class WorldScreen extends ScreenAdapter {
     private final OrthographicCamera camera;
     private final CameraManager cameraManager;
     private final ShapeRenderer shapeRenderer;
-    private final SpriteBatch spriteBatch;
-    private final BitmapFont font;
     private final HexMap map;
     private final Ship playerShip;
     private HexCoordinate selectedTile;
@@ -42,10 +38,6 @@ public class WorldScreen extends ScreenAdapter {
         this.camera.position.set(GameConfig.VIEWPORT_WIDTH / 2f, GameConfig.VIEWPORT_HEIGHT / 2f, 0f);
         this.cameraManager = new CameraManager(camera);
         this.shapeRenderer = new ShapeRenderer();
-        this.spriteBatch = new SpriteBatch();
-        this.font = new BitmapFont();
-        this.font.getData().setScale(0.02f);
-        this.font.setColor(Color.WHITE);
         this.map = new HexMap(6);
         this.playerShip = new Ship("Sea Wren");
         this.playerShip.setPosition(new HexCoordinate(0, 0));
@@ -96,19 +88,105 @@ public class WorldScreen extends ScreenAdapter {
         shapeRenderer.setColor(1f, 0.82f, 0.38f, 1f);
         shapeRenderer.circle(6f + shipPixel.x, 4.2f + shipPixel.y, 0.3f);
 
-        shapeRenderer.end();
-
-        // Draw coordinates on hexes
-        spriteBatch.setProjectionMatrix(camera.combined);
-        spriteBatch.begin();
-        for (HexTile tile : map.getTiles()) {
-            Vector2 pixel = HexMath.hexToPixel(tile.getCoordinate(), 0.72f);
-            float centerX = 6f + pixel.x;
-            float centerY = 4.2f + pixel.y;
-            String coords = tile.getCoordinate().getQ() + "," + tile.getCoordinate().getR();
-            font.draw(spriteBatch, coords, centerX - 0.1f, centerY + 0.05f);
+        // Draw selected tile coordinates as simple lines
+        if (selectedTile != null) {
+            Vector2 selPixel = HexMath.hexToPixel(selectedTile, 0.72f);
+            float selX = 6f + selPixel.x;
+            float selY = 4.2f + selPixel.y;
+            String coords = "Q:" + selectedTile.getQ() + " R:" + selectedTile.getR();
+            
+            shapeRenderer.setColor(1f, 1f, 0f, 0.8f);
+            float textY = selY + 0.5f;
+            drawSimpleText(selX, textY, coords);
         }
-        spriteBatch.end();
+
+        shapeRenderer.end();
+    }
+
+    private void drawSimpleText(float x, float y, String text) {
+        float charWidth = 0.08f;
+        float charHeight = 0.15f;
+        float currentX = x - (text.length() * charWidth / 2f);
+        
+        for (char c : text.toCharArray()) {
+            if (c == ':') {
+                shapeRenderer.line(currentX, y + 0.05f, currentX, y - 0.05f);
+            } else if (c == ' ') {
+                // Space
+            } else if (Character.isDigit(c)) {
+                drawDigit(currentX, y, c - '0');
+            } else if (c == '-') {
+                shapeRenderer.line(currentX, y, currentX + charWidth, y);
+            }
+            currentX += charWidth;
+        }
+    }
+
+    private void drawDigit(float x, float y, int digit) {
+        float w = 0.04f;
+        float h = 0.06f;
+        
+        switch (digit) {
+            case 0:
+                shapeRenderer.line(x, y + h, x, y - h);
+                shapeRenderer.line(x, y + h, x + w, y + h);
+                shapeRenderer.line(x + w, y + h, x + w, y - h);
+                shapeRenderer.line(x + w, y - h, x, y - h);
+                break;
+            case 1:
+                shapeRenderer.line(x + w, y + h, x + w, y - h);
+                break;
+            case 2:
+                shapeRenderer.line(x, y + h, x + w, y + h);
+                shapeRenderer.line(x + w, y + h, x + w, y);
+                shapeRenderer.line(x + w, y, x, y);
+                shapeRenderer.line(x, y, x, y - h);
+                shapeRenderer.line(x, y - h, x + w, y - h);
+                break;
+            case 3:
+                shapeRenderer.line(x, y + h, x + w, y + h);
+                shapeRenderer.line(x + w, y + h, x + w, y - h);
+                shapeRenderer.line(x + w, y, x, y);
+                shapeRenderer.line(x, y - h, x + w, y - h);
+                break;
+            case 4:
+                shapeRenderer.line(x, y + h, x, y);
+                shapeRenderer.line(x, y, x + w, y);
+                shapeRenderer.line(x + w, y + h, x + w, y - h);
+                break;
+            case 5:
+                shapeRenderer.line(x + w, y + h, x, y + h);
+                shapeRenderer.line(x, y + h, x, y);
+                shapeRenderer.line(x, y, x + w, y);
+                shapeRenderer.line(x + w, y, x + w, y - h);
+                shapeRenderer.line(x + w, y - h, x, y - h);
+                break;
+            case 6:
+                shapeRenderer.line(x + w, y + h, x, y + h);
+                shapeRenderer.line(x, y + h, x, y - h);
+                shapeRenderer.line(x, y - h, x + w, y - h);
+                shapeRenderer.line(x + w, y - h, x + w, y);
+                shapeRenderer.line(x + w, y, x, y);
+                break;
+            case 7:
+                shapeRenderer.line(x, y + h, x + w, y + h);
+                shapeRenderer.line(x + w, y + h, x, y - h);
+                break;
+            case 8:
+                shapeRenderer.line(x, y + h, x, y - h);
+                shapeRenderer.line(x, y + h, x + w, y + h);
+                shapeRenderer.line(x + w, y + h, x + w, y - h);
+                shapeRenderer.line(x + w, y - h, x, y - h);
+                shapeRenderer.line(x, y, x + w, y);
+                break;
+            case 9:
+                shapeRenderer.line(x + w, y - h, x, y - h);
+                shapeRenderer.line(x, y - h, x, y);
+                shapeRenderer.line(x, y, x + w, y);
+                shapeRenderer.line(x + w, y, x + w, y + h);
+                shapeRenderer.line(x + w, y + h, x, y + h);
+                break;
+        }
     }
 
     private void drawHexOutline(float centerX, float centerY, float radius) {
@@ -213,8 +291,6 @@ public class WorldScreen extends ScreenAdapter {
     @Override
     public void dispose() {
         shapeRenderer.dispose();
-        spriteBatch.dispose();
-        font.dispose();
         touchInputHandler.dispose();
     }
 
