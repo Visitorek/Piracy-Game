@@ -19,14 +19,15 @@ public class MainMenuScreen extends ScreenAdapter {
     private final CorsairGame game;
     private final Stage stage;
     private final Skin skin;
+    private BitmapFont font;
 
     public MainMenuScreen(CorsairGame game) {
         this.game = game;
         this.stage = new Stage(new ScreenViewport());
         this.skin = new Skin();
 
-        BitmapFont font = new BitmapFont();
-        font.getData().setScale(1.6f);
+        this.font = new BitmapFont();
+        this.font.getData().setScale(1.6f);
 
         TextButtonStyle buttonStyle = new TextButtonStyle();
         buttonStyle.font = font;
@@ -85,5 +86,9 @@ public class MainMenuScreen extends ScreenAdapter {
     public void dispose() {
         stage.dispose();
         skin.dispose();
+        if (font != null) {
+            font.dispose();
+            font = null;
+        }
     }
 }
