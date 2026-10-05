@@ -1,6 +1,6 @@
-# Roadmapa Projektu: Piracy Deluxe Remake
+# Roadmapa Projektu: Corsair Deluxe Remake
 
-**Projekt:** Piracy Deluxe Remake
+**Projekt:** Corsair Deluxe Remake
 **Platforma:** Android (telefony & tablety)
 **Technologia:** Kotlin, Android Studio, libGDX (Gdx-Liftoff)
 **Ścieżka pliku:** `D:\moje\Piracy game\.meta\roadmap.md`
@@ -54,10 +54,10 @@ Porty, handel i ekonomia są odłożone na późniejsze, opcjonalne rozszerzenie
 
 ---
 
-## ⚔️ Faza 3: Bitwa Morska w stylu Piracy Deluxe (statyczna, turowa gra logiczna)
+## ⚔️ Faza 3: Bitwa Morska w stylu Corsair Deluxe (statyczna, turowa gra logiczna)
 
 ### 3.0 Założenie designowe: bitwa jest statyczna i logiczna
-* [x] Odrzucenie klasycznego, płynnego „real-time combat” na rzecz statycznej, turowej gry logicznej inspirowanej układem z **Piracy Deluxe**.
+* [x] Odrzucenie klasycznego, płynnego „real-time combat” na rzecz statycznej, turowej gry logicznej inspirowanej układem z **Corsair Deluxe**.
 * [ ] Po wejściu w konflikt gra przechodzi do osobnego ekranu walki, który jest statycznym panelem rozstrzygającym wynik starcia. W tej warstwie nie ma ruchu jednostek po planszy ani akcji typu salwa / kurs / żagiel w sensie real-time.
 * [ ] Rozgrywka opiera się na turach: wybór akcji, rozstrzygnięcie logiki, następna tura, bez szybkiej akcji na czas.
 * [ ] Mapa bitwy ma charakter panelu decyzyjnego: pozycje statków, burty, niszczenie kadłuba, straty załogi i dostępne decyzje są odczytywane jako dane logiczne, a nie fizyczne.
