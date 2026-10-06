@@ -50,7 +50,7 @@ public class WorldScreen extends ScreenAdapter {
         this.shapeRenderer = new ShapeRenderer();
         this.spriteBatch = new SpriteBatch();
         this.font = new BitmapFont();
-        this.font.getData().setScale(0.8f);
+        this.font.getData().setScale(2.0f);
         this.font.setColor(Color.WHITE);
         this.glyphLayout = new GlyphLayout();
         this.map = new HexMap(6);
