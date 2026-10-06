@@ -67,10 +67,14 @@ public class WorldScreen extends ScreenAdapter {
     private static final float TILE_FILL_ALPHA_FOGGED = 0.22f;
     /** Terrain borders are drawn thicker than the plain hex grid so the transitions read clearly. */
     private static final float TERRAIN_EDGE_SCALE = 2.0f;
+    /** Where two different terrains meet, the contact line gets double that thickness again. */
+    private static final float TRANSITION_EDGE_SCALE = TERRAIN_EDGE_SCALE * 2f;
     private static final Color BACKGROUND_COLOR = new Color(0.45f, 0.45f, 0.45f, 1f);
     private static final Color CATEGORY_ISLAND = new Color(0.45f, 0.52f, 0.30f, 1f);
     private static final Color CATEGORY_SHALLOW = new Color(0.32f, 0.70f, 0.74f, 1f);
     private static final Color CATEGORY_WATER = new Color(0.13f, 0.27f, 0.46f, 1f);
+    /** Land hemmed in by land on every side is overgrown jungle: dark green. */
+    private static final Color DENSE_VEGETATION_COLOR = new Color(0.15f, 0.30f, 0.14f, 1f);
     /** Land meets the shallows: a strip of yellow sand. */
     private static final Color SAND_COLOR = new Color(0.94f, 0.85f, 0.46f, 1f);
     /**
@@ -256,8 +260,9 @@ public class WorldScreen extends ScreenAdapter {
         return buttonRadius() * 0.9f;
     }
 
+    /** Exit sits at the bottom of the right-hand button column, out of the way of the spyglass. */
     private float menuButtonCenterY() {
-        return buttonCenterY() + buttonRadius() * 2.5f;
+        return menuButtonRadius() + 24f * Gdx.graphics.getDensity();
     }
 
     /** Leaves the world map and shows the native main menu (same as the system back button). */
@@ -410,12 +415,12 @@ public class WorldScreen extends ScreenAdapter {
     }
 
     /** Paints a single edge of a hex, in the colour the caller has already set. */
-    private void drawHexEdge(float centerX, float centerY, float radius, int edgeIndex) {
+    private void drawHexEdge(float centerX, float centerY, float radius, int edgeIndex, float thicknessScale) {
         float[] vertices = buildHexVertices(centerX, centerY, radius);
         int from = edgeIndex * 2;
         int to = ((edgeIndex + 1) % 6) * 2;
         shapeRenderer.rectLine(vertices[from], vertices[from + 1],
-                vertices[to], vertices[to + 1], lineThickness * TERRAIN_EDGE_SCALE);
+                vertices[to], vertices[to + 1], lineThickness * thicknessScale);
     }
 
     /** Debug view: flat terrain colours, exactly as the map has always been drawn. */
@@ -429,12 +434,13 @@ public class WorldScreen extends ScreenAdapter {
     /**
      * Normal view: the hex is filled with its terrain category colour and every edge is painted by
      * what lies on its other side - the tile's own category colour when the neighbour shares its
-     * terrain, otherwise the colour of the transition between the two (sand, cliff, reef). Both
-     * tiles paint a shared edge, so borders always match.
+     * terrain, otherwise the colour of the transition between the two (sand, cliff, reef) drawn at
+     * double thickness. Both tiles paint a shared edge, so borders always match.
      */
     private void drawPaintedTile(HexTile tile, float centerX, float centerY) {
         boolean visible = isVisible(tile.getCoordinate());
-        Color fill = categoryColorFor(tile.getTerrain());
+        boolean jungle = isJungle(tile);
+        Color fill = jungle ? DENSE_VEGETATION_COLOR : categoryColorFor(tile.getTerrain());
         shapeRenderer.setColor(fill.r, fill.g, fill.b,
                 visible ? TILE_FILL_ALPHA_VISIBLE : TILE_FILL_ALPHA_FOGGED);
         drawHexFill(centerX, centerY, TILE_RADIUS);
@@ -446,12 +452,33 @@ public class WorldScreen extends ScreenAdapter {
             HexTile.Terrain neighborTerrain = neighbor == null || !discovered.contains(neighborCoordinate)
                     ? tile.getTerrain()
                     : neighbor.getTerrain();
-            Color color = neighborTerrain == tile.getTerrain()
-                    ? categoryColorFor(tile.getTerrain())
-                    : transitionColorFor(tile.getTerrain(), neighborTerrain);
+            boolean sharedTerrain = neighborTerrain == tile.getTerrain();
+            Color color;
+            if (!sharedTerrain) {
+                color = transitionColorFor(tile.getTerrain(), neighborTerrain);
+            } else if (jungle && isJungle(neighbor)) {
+                color = DENSE_VEGETATION_COLOR;
+            } else {
+                color = categoryColorFor(tile.getTerrain());
+            }
             shapeRenderer.setColor(color.r, color.g, color.b, edgeAlpha);
-            drawHexEdge(centerX, centerY, TILE_RADIUS, EDGE_INDEX[direction.ordinal()]);
+            drawHexEdge(centerX, centerY, TILE_RADIUS, EDGE_INDEX[direction.ordinal()],
+                    sharedTerrain ? TERRAIN_EDGE_SCALE : TRANSITION_EDGE_SCALE);
         }
+    }
+
+    /** True when this land tile is hemmed in by land on all six sides, i.e. jungle. */
+    private boolean isJungle(HexTile tile) {
+        if (tile == null || tile.getTerrain() != HexTile.Terrain.ISLAND) {
+            return false;
+        }
+        for (HexDirection direction : HexDirection.values()) {
+            HexTile neighbor = map.getTile(tile.getCoordinate().neighbor(direction));
+            if (neighbor == null || neighbor.getTerrain() != HexTile.Terrain.ISLAND) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Colour of the border between two different terrains. */
