@@ -14,6 +14,7 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.corsair.deluxe.CorsairGame;
 import com.corsair.deluxe.core.GameConfig;
+import com.corsair.deluxe.core.GameSettings;
 import com.corsair.deluxe.domain.HexCoordinate;
 import com.corsair.deluxe.domain.HexDirection;
 import com.corsair.deluxe.domain.HexMap;
@@ -153,6 +154,19 @@ public class WorldScreen extends ScreenAdapter {
         shapeRenderer.end();
 
         // Draw coordinates in screen-space (fixed pixel size, unaffected by zoom)
+        if (GameSettings.isDebugMode()) {
+            drawTileCoordinates();
+        }
+
+        drawLookAroundButton();
+        if (GameSettings.isDebugMode()) {
+            drawDebugBattleButton();
+        }
+        drawMenuButton();
+    }
+
+    /** Debug helper: prints the axial coordinate of every discovered tile. */
+    private void drawTileCoordinates() {
         spriteBatch.setProjectionMatrix(hudCamera.combined);
         spriteBatch.begin();
         Vector3 screenPos = new Vector3();
@@ -173,10 +187,6 @@ public class WorldScreen extends ScreenAdapter {
             font.draw(spriteBatch, coords, screenPos.x - glyphLayout.width / 2f, screenPos.y + glyphLayout.height / 2f);
         }
         spriteBatch.end();
-
-        drawLookAroundButton();
-        drawDebugBattleButton();
-        drawMenuButton();
     }
 
     // TEMPORARY: debug button that jumps straight into a battle
@@ -311,12 +321,14 @@ public class WorldScreen extends ScreenAdapter {
             return true;
         }
 
-        float debugDx = screenX - buttonCenterX();
-        float debugDy = (Gdx.graphics.getHeight() - screenY) - debugButtonCenterY();
-        float debugRadius = buttonRadius() * 0.7f;
-        if (debugDx * debugDx + debugDy * debugDy <= debugRadius * debugRadius) {
-            startBattle();
-            return true;
+        if (GameSettings.isDebugMode()) {
+            float debugDx = screenX - buttonCenterX();
+            float debugDy = (Gdx.graphics.getHeight() - screenY) - debugButtonCenterY();
+            float debugRadius = buttonRadius() * 0.7f;
+            if (debugDx * debugDx + debugDy * debugDy <= debugRadius * debugRadius) {
+                startBattle();
+                return true;
+            }
         }
 
         float dx = screenX - buttonCenterX();

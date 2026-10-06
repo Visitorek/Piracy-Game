@@ -12,6 +12,7 @@ public class ImmersiveActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        AndroidSettings.install(this);
         hideSystemUi();
     }
 

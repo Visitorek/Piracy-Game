@@ -6,6 +6,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 
+import com.corsair.deluxe.core.GameSettings;
+
 /**
  * Turn-based "net" skirmish modelled on Piracy Deluxe.
  *
@@ -21,9 +23,8 @@ public class BattleState {
     public static final int[] HATCH_ROWS = {0, 1, 2, 3, 4};
     public static final int MAX_TURNS = 80;
     public static final int CREW_PER_UNIT = 3;
-    /** Pirates waiting inside every hatch at the start; may be raised later. */
+    /** Pirates waiting inside every hatch at the start. */
     public static final int PLAYER_PIRATES_PER_HATCH = 2;
-    public static final int ENEMY_PIRATES_PER_HATCH = 1;
 
     private final boolean[][] holes = new boolean[WIDTH][HEIGHT];
     private final BattleSide[][] crew = new BattleSide[WIDTH][HEIGHT];
@@ -61,7 +62,9 @@ public class BattleState {
     }
 
     public static int piratesPerHatch(BattleSide side) {
-        return side == BattleSide.PLAYER ? PLAYER_PIRATES_PER_HATCH : ENEMY_PIRATES_PER_HATCH;
+        return side == BattleSide.PLAYER
+                ? PLAYER_PIRATES_PER_HATCH
+                : GameSettings.enemyPiratesPerHatch();
     }
 
     public BattleState copy() {

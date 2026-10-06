@@ -4,4 +4,16 @@
   <string name="start_game">Zacznij grę</string>
   <string name="exit_game">Wyjdź z gry</string>
     <string name="info">Info</string>
+    <string name="options">Opcje</string>
+    <string name="options_close">Zamknij</string>
+    <string name="options_entry_format">%1$s: %2$s</string>
+    <string name="option_sound">Dźwięk</string>
+    <string name="option_music">Muzyka</string>
+    <string name="option_difficulty">Trudność</string>
+    <string name="option_debug">Debug mode</string>
+    <string name="toggle_on">WŁ.</string>
+    <string name="toggle_off">WYŁ.</string>
+    <string name="difficulty_easy">Łatwy</string>
+    <string name="difficulty_normal">Normalny</string>
+    <string name="difficulty_hard">Trudny</string>
 </resources>

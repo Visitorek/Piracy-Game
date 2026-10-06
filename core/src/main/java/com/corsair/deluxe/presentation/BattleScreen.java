@@ -14,6 +14,7 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.corsair.deluxe.CorsairGame;
+import com.corsair.deluxe.core.GameSettings;
 import com.corsair.deluxe.domain.Ship;
 import com.corsair.deluxe.domain.battle.ActionResult;
 import com.corsair.deluxe.domain.battle.BattleAI;
@@ -35,7 +36,6 @@ import java.util.Random;
 public class BattleScreen extends ScreenAdapter {
     private static final float ENEMY_THINK_SECONDS = 0.8f;
     private static final float INPUT_DELAY_SECONDS = 0.6f;
-    private static final int AI_DEPTH = 3;
     /** Cells smaller than this make the board unreadable, so the text scale is reduced instead. */
     private static final float MIN_CELL = 26f;
     /** Longest variant of the turn line, so the top text band never has to grow. */
@@ -60,7 +60,7 @@ public class BattleScreen extends ScreenAdapter {
     private final GlyphLayout layout = new GlyphLayout();
     private final OrthographicCamera camera = new OrthographicCamera();
     private final Random random = new Random();
-    private final BattleAI ai = new BattleAI(random, AI_DEPTH);
+    private final BattleAI ai = new BattleAI(random, GameSettings.aiDepth());
     private final BattleState state;
     private final int initialPlayerUnits;
     /** Hatches the player opened for the next muster; opening and closing them is free. */
