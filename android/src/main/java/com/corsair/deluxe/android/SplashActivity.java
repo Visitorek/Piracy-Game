@@ -1,7 +1,6 @@
 package com.corsair.deluxe.android;
 
 import android.animation.ObjectAnimator;
-import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.animation.LinearInterpolator;
@@ -10,8 +9,8 @@ import android.widget.ProgressBar;
 
 import com.corsair.deluxe.R;
 
-public class SplashActivity extends Activity {
-    private static final int SPLASH_DURATION_MS = 3000;
+public class SplashActivity extends ImmersiveActivity {
+    private static final int SPLASH_DURATION_MS = 1500;
 
     private ObjectAnimator progressAnimator;
 

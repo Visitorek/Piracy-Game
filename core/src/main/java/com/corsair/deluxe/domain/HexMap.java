@@ -171,6 +171,18 @@ public class HexMap {
         }
     }
 
+    /** Random non-land tile at least minDistance away from the given hex, or null if none exists. */
+    public HexCoordinate findRandomWaterTile(HexCoordinate avoid, int minDistance) {
+        List<HexCoordinate> candidates = new ArrayList<HexCoordinate>();
+        for (HexTile tile : getTiles()) {
+            if (tile.getTerrain() != HexTile.Terrain.ISLAND
+                    && tile.getCoordinate().distanceTo(avoid) >= minDistance) {
+                candidates.add(tile.getCoordinate());
+            }
+        }
+        return candidates.isEmpty() ? null : candidates.get(random.nextInt(candidates.size()));
+    }
+
     public List<HexTile> getTiles() {
         List<HexTile> result = new ArrayList<HexTile>();
         for (int q = -radius; q <= radius; q++) {

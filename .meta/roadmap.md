@@ -35,7 +35,7 @@ Ta separacja ma pozwolić na odrębny design zarówno eksploracji, jak i walki, 
 * [x] Renderowanie kafelków hex w prototypowej wersji przy użyciu `ShapeRenderer`.
 * [x] Obsługa kamery i sterowania w trybie desktopowym.
 * [x] Wskaźnik zaznaczenia pola (Highlight tile) i rysowanie ścieżki planowanego ruchu statku.
-* [ ] System Mgły Wojny (Fog of War) – zasłanianie nieodkrytych kafelków i odkrywanie ich w zasięgu wzroku statku.
+* [x] System Mgły Wojny (Fog of War) – zasłanianie nieodkrytych kafelków i odkrywanie ich w zasięgu wzroku statku.
 
 ### 2.3 Mechanika Pływania i Pętla Turowa
 * [x] Klasa statku gracza (punkty ruchu/punkty akcji, zdrowie kadłuba, załoga, zaopatrzenie).
@@ -54,29 +54,33 @@ Porty, handel i ekonomia są odłożone na późniejsze, opcjonalne rozszerzenie
 
 ---
 
-## ⚔️ Faza 3: Bitwa Morska w stylu Corsair Deluxe (statyczna, turowa gra logiczna)
+## ⚔️ Faza 3: Bitwa w stylu Piracy Deluxe (turowa potyczka na „sieci")
 
-### 3.0 Założenie designowe: bitwa jest statyczna i logiczna
-* [x] Odrzucenie klasycznego, płynnego „real-time combat” na rzecz statycznej, turowej gry logicznej inspirowanej układem z **Corsair Deluxe**.
-* [ ] Po wejściu w konflikt gra przechodzi do osobnego ekranu walki, który jest statycznym panelem rozstrzygającym wynik starcia. W tej warstwie nie ma ruchu jednostek po planszy ani akcji typu salwa / kurs / żagiel w sensie real-time.
-* [ ] Rozgrywka opiera się na turach: wybór akcji, rozstrzygnięcie logiki, następna tura, bez szybkiej akcji na czas.
-* [ ] Mapa bitwy ma charakter panelu decyzyjnego: pozycje statków, burty, niszczenie kadłuba, straty załogi i dostępne decyzje są odczytywane jako dane logiczne, a nie fizyczne.
-* [ ] Działania w tej warstwie są jedynie narzędziem rozstrzygnięcia starcia; nie pełnią funkcji „walki w czasie”.
+**Referencja designowa:** [Piracy Deluxe (Amiga, 1994)](https://www.gamesthatwerent.com/2025/12/piracy-deluxe/) – klasyczna, turowa potyczka abordażowa rozgrywana na planszy-sieci.
 
-### 3.1 Arena Taktyczna Bitwy
-* [ ] Inicjalizacja dedykowanego ekranu `BattleScreen` po wykryciu wrogiego statku na mapie świata.
-* [ ] Generowanie statycznej, mniejszej planszy bitwy z prostą geometrią i widokiem podobnym do ekranu z referencji.
-* [ ] System wiatru jako statyczny parametr rundy: kierunek i siła wiatru wpływają na wynik działań i dostępność ruchu, ale nie powodują płynnej mechaniki z odrywaniem od planszy.
+### 3.0 Założenie designowe
+* [x] Bitwa to statyczna, turowa gra logiczna (bez akcji w czasie rzeczywistym), rozgrywana na osobnym ekranie po wejściu statku gracza na pole przeciwnika.
+* [x] Dwie strony stoją na przeciwnych krawędziach siatce 6x5 (gracz po lewej, wróg po prawej; każdy statek ma 5 luków, po jednym na rząd); załoga czeka w rezerwie za lukami – gracz startuje z 2 piratami na luk (10), wróg z 1 (5).
 
-### 3.2 Mechanika Rozstrzygająca Bitwę
-* [ ] Wyznaczanie stref ostrzału (lewa burta, prawa burta, przód, tył) jako danych logicznych dla rozliczenia tur.
-* [ ] Wybór akcji w turze z użyciem prostych, statycznych parametrów konfliktu, np. atak, obrona, manewr, abordaż, zrezygnowanie z walki.
-* [ ] Obliczanie szansy na trafienie i obrażeń w oparciu o odległość, pozycję względem wroga, stan statku i aktualne morale załogi.
+### 3.1 Zasady (zaimplementowane w `domain.battle.BattleState`)
+* [x] Otwieranie luków jest darmowe i działa jak przełącznik (toggle) - można mieć otwartych kilka luków naraz, bez zużywania tury.
+* [x] Tura = jedna z dwóch akcji: **wyprowadzenie załogi** (każdy otwarty luk wypuszcza po 1 piracie na pole wejściowe, maks. 5 naraz; nic, co już jest na sieci, się nie rusza) albo **skok** całej załogi na sieci o 1 pole: do przodu albo na ukos do przodu (w górę lub w dół).
+* [x] Pirat, który dojdzie do kolumny luków przeciwnika, zawsze atakuje luk na wprost (w swoim rzędzie) i jest przy tym zużyty - niezależnie od tego, czy zadano skok prosto, czy na ukos; pozostała załoga wykonuje zadany skok normalnie.
+* [x] Dziury w sieci generowane symetrycznie punktowo (uczciwy start); ich liczba rośnie z uszkodzeniem kadłuba gracza.
+* [x] Wygrywa strona, która pozbawi przeciwnika załogi lub użytecznych luków; po 80 turach decyduje liczebność załogi.
+* [x] Skala sił zależy od załogi statku (1 jednostka = 3 marynarzy, 3–9 jednostek).
 
-### 3.3 Abordaż i Finał Bitwy
-* [ ] Wybór akcji abordażu jako oddzielnej, logicznej decyzji w turze, zamiast dynamicznej kolizji na mapie.
-* [ ] Rozstrzygnięcie walki wręcz na podstawie liczebności załogi, morale i aktualnego stanu jednostek.
-* [ ] Ekran podsumowania wygranej bitwy: przejmowanie łupu, zniszczenie lub zdobycie przeciwnika, z zastosowaniem prostego, statycznego rozliczenia logicznego.
+### 3.2 Ekran bitwy (`BattleScreen`)
+* [x] Kółka przy lukach pokazują piratów pozostałych w luku (po jego zewnętrznej stronie, od góry); brak kółka = pirat już wyszedł na siatkę; otwarty luk świeci na złoto i pokazuje pierścień na polu wejściowym.
+* [x] Dotykowy interfejs: tapnięcie własnego luku przełącza go (otwarty/zamknięty), trzy strzałki (do przodu / ukos w górę / ukos w dół) = wyprowadzenie załogi z otwartych luków, a gdy wszystkie są zamknięte - skok; przycisk ucieczki.
+* [x] Panel statusu: rezerwa, załoga na sieci, sprawne luki, numer tury, log ostatniej akcji.
+* [x] Powrót na mapę świata: straty załogi, łup za zwycięstwo (rum, żywność), usunięcie pokonanego przeciwnika, cofnięcie przy ucieczce/remisie; porażka wraca do menu głównego.
+
+### 3.3 Dalszy rozwój bitwy
+* [ ] Animacje skoków i efekty (dźwięk, cząsteczki).
+* [ ] Wpływ cech statku/załogi na bitwę (morale, bonusy kapitana, rodzaje przeciwników).
+* [ ] Ekran podsumowania z łupem (ładunek, złoto, przejęcie statku).
+* [ ] Poziomy trudności SI (głębokość przeszukiwania).
 
 ---
 
@@ -84,7 +88,7 @@ Porty, handel i ekonomia są odłożone na późniejsze, opcjonalne rozszerzenie
 
 ### 4.1 Sztuczna Inteligencja (AI)
 * [ ] **SI na Mapie Świata:** Statki pirackie i patrolowe polujące na gracza lub inne jednostki, z zachowaniem ruchu po open ocean i w pobliżu wysp.
-* [ ] **SI w Bitwie Taktycznej:** Podejmowanie decyzji o manewrowaniu w celu uderzenia pełną salwą burtową, ucieczka przy znacznych uszkodzeniach lub dążenie do abordażu.
+* [x] **SI w Bitwie:** przeciwnik oparty na minimaksie z cięciami alfa-beta (`BattleAI`), wybierający załadunek lub kierunek skoku.
 
 ### 4.2 System Zapisów i Odczytu (Persistence)
 * [ ] Integracja z **Kotlinx.Serialization** lub bazą danych **Room**.

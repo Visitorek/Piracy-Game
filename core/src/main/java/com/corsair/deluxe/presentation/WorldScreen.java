@@ -21,6 +21,8 @@ import com.corsair.deluxe.domain.HexMath;
 import com.corsair.deluxe.domain.HexPathfinder;
 import com.corsair.deluxe.domain.HexTile;
 import com.corsair.deluxe.domain.Ship;
+import com.corsair.deluxe.domain.battle.BattleOutcome;
+import com.corsair.deluxe.domain.battle.BattleResult;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -38,10 +40,13 @@ public class WorldScreen extends ScreenAdapter {
     private final GlyphLayout glyphLayout;
     private final HexMap map;
     private final Ship playerShip;
+    private Ship enemyShip;
+    private HexCoordinate lastPosition;
     private HexCoordinate selectedTile;
     private List<HexCoordinate> route = new ArrayList<HexCoordinate>();
     private TouchInputHandler touchInputHandler;
     private static final float SECONDS_PER_HEX = 1f;
+    private static final int ENEMY_MIN_DISTANCE = 4;
     private List<HexCoordinate> travelPath = new ArrayList<HexCoordinate>();
     private int travelIndex;
     private float travelProgress;
@@ -73,6 +78,12 @@ public class WorldScreen extends ScreenAdapter {
         this.playerShip.setPosition(new HexCoordinate(0, 0));
         this.selectedTile = playerShip.getPosition();
         revealAroundShip();
+        HexCoordinate enemyStart = map.findRandomWaterTile(playerShip.getPosition(), ENEMY_MIN_DISTANCE);
+        if (enemyStart != null) {
+            this.enemyShip = new Ship("Pirate");
+            this.enemyShip.setCrew(15);
+            this.enemyShip.setPosition(enemyStart);
+        }
         this.touchInputHandler = new TouchInputHandler(this, camera);
     }
 
@@ -125,6 +136,12 @@ public class WorldScreen extends ScreenAdapter {
             }
         }
 
+        if (enemyShip != null && discovered.contains(enemyShip.getPosition())) {
+            Vector2 enemyPixel = HexMath.hexToPixel(enemyShip.getPosition(), GameConfig.HEX_SPACING);
+            shapeRenderer.setColor(0.85f, 0.1f, 0.1f, 1f);
+            shapeRenderer.circle(6f + enemyPixel.x, 4.2f + enemyPixel.y, 0.3f);
+        }
+
         Vector2 shipPixel = HexMath.hexToPixel(playerShip.getPosition(), GameConfig.HEX_SPACING);
         if (traveling) {
             Vector2 nextPixel = HexMath.hexToPixel(travelPath.get(travelIndex + 1), GameConfig.HEX_SPACING);
@@ -158,6 +175,35 @@ public class WorldScreen extends ScreenAdapter {
         spriteBatch.end();
 
         drawLookAroundButton();
+        drawDebugBattleButton();
+    }
+
+    // TEMPORARY: debug button that jumps straight into a battle
+    private float debugButtonCenterY() {
+        return buttonCenterY() - buttonRadius() * 2.5f;
+    }
+
+    private void drawDebugBattleButton() {
+        float cx = buttonCenterX();
+        float cy = debugButtonCenterY();
+        float radius = buttonRadius() * 0.7f;
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        shapeRenderer.setProjectionMatrix(hudCamera.combined);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(0.65f, 0.1f, 0.1f, 0.92f);
+        shapeRenderer.circle(cx, cy, radius, 32);
+        shapeRenderer.end();
+
+        spriteBatch.setProjectionMatrix(hudCamera.combined);
+        spriteBatch.begin();
+        float oldScale = font.getData().scaleX;
+        font.getData().setScale(oldScale * 0.6f);
+        font.setColor(Color.WHITE);
+        glyphLayout.setText(font, "DBG");
+        font.draw(spriteBatch, glyphLayout, cx - glyphLayout.width / 2f, cy + glyphLayout.height / 2f);
+        font.getData().setScale(oldScale);
+        spriteBatch.end();
     }
 
     private float buttonRadius() {
@@ -222,6 +268,14 @@ public class WorldScreen extends ScreenAdapter {
 
     /** Returns true when the tap hit the look-around button and should not reach the map. */
     public boolean handleHudTap(float screenX, float screenY) {
+        float debugDx = screenX - buttonCenterX();
+        float debugDy = (Gdx.graphics.getHeight() - screenY) - debugButtonCenterY();
+        float debugRadius = buttonRadius() * 0.7f;
+        if (debugDx * debugDx + debugDy * debugDy <= debugRadius * debugRadius) {
+            startBattle();
+            return true;
+        }
+
         float dx = screenX - buttonCenterX();
         float dy = (Gdx.graphics.getHeight() - screenY) - buttonCenterY();
         if (dx * dx + dy * dy > buttonRadius() * buttonRadius()) {
@@ -328,7 +382,7 @@ public class WorldScreen extends ScreenAdapter {
         }
 
         if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.B)) {
-            game.setScreen(new BattleScreen(game));
+            startBattle();
         }
     }
 
@@ -355,6 +409,32 @@ public class WorldScreen extends ScreenAdapter {
         spriteBatch.dispose();
         font.dispose();
         touchInputHandler.dispose();
+    }
+
+    public void startBattle() {
+        Ship opponent = enemyShip != null ? enemyShip : new Ship("Pirate");
+        traveling = false;
+        stopRequested = false;
+        travelProgress = 0f;
+        lookingAround = false;
+        selectedTile = playerShip.getPosition();
+        route = new ArrayList<HexCoordinate>();
+        game.setScreen(new BattleScreen(game, this, playerShip, opponent));
+    }
+
+    public void onBattleFinished(BattleResult result) {
+        playerShip.setCrew(Math.max(1, playerShip.getCrew() - result.getPlayerCrewLost()));
+        if (result.getOutcome() == BattleOutcome.VICTORY) {
+            playerShip.setRum(playerShip.getRum() + 3);
+            playerShip.setFoodSupplies(playerShip.getFoodSupplies() + 4);
+            enemyShip = null;
+        } else if (lastPosition != null) {
+            // Fleeing or a draw pushes the ship back to where it came from
+            playerShip.setPosition(lastPosition);
+            revealAroundShip();
+        }
+        selectedTile = playerShip.getPosition();
+        route = new ArrayList<HexCoordinate>();
     }
 
     private boolean isBusy() {
@@ -418,8 +498,13 @@ public class WorldScreen extends ScreenAdapter {
         while (traveling && travelProgress >= 1f) {
             travelProgress -= 1f;
             travelIndex++;
+            lastPosition = playerShip.getPosition();
             playerShip.setPosition(travelPath.get(travelIndex));
             revealAroundShip();
+            if (enemyShip != null && playerShip.getPosition().equals(enemyShip.getPosition())) {
+                startBattle();
+                return;
+            }
             if (stopRequested || travelIndex >= travelPath.size() - 1) {
                 traveling = false;
                 travelProgress = 0f;

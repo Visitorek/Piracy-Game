@@ -1,6 +1,5 @@
 package com.corsair.deluxe.android;
 
-import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
@@ -8,7 +7,7 @@ import android.widget.Button;
 
 import com.corsair.deluxe.R;
 
-public class MainMenuActivity extends Activity {
+public class MainMenuActivity extends ImmersiveActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);

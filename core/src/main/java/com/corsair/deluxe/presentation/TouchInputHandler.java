@@ -77,7 +77,7 @@ public class TouchInputHandler extends InputAdapter {
     @Override
     public boolean keyDown(int keycode) {
         if (keycode == Input.Keys.BACK || keycode == Input.Keys.ESCAPE) {
-            worldScreen.getGame().setScreen(new MainMenuScreen(worldScreen.getGame()));
+            worldScreen.getGame().openMainMenu();
             return true;
         }
 
@@ -89,7 +89,7 @@ public class TouchInputHandler extends InputAdapter {
         }
 
         if (keycode == Input.Keys.B) {
-            worldScreen.getGame().setScreen(new BattleScreen(worldScreen.getGame()));
+            worldScreen.startBattle();
             return true;
         }
 
