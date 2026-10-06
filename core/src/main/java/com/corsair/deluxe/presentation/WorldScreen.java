@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.ScreenUtils;
@@ -52,6 +53,8 @@ public class WorldScreen extends ScreenAdapter {
     private int travelIndex;
     private float travelProgress;
     private boolean traveling;
+    /** Where the hull currently points, in degrees; follows the course and eases into turns. */
+    private float shipHeadingDeg;
     private boolean stopRequested;
     private float lineThickness;
     private static final int LOOK_AROUND_TURNS = 3;
@@ -100,6 +103,66 @@ public class WorldScreen extends ScreenAdapter {
      * TILE_RADIUS} circumradii from our centre.
      */
     private static final float SHIP_FRAME_RADIUS = 2f * GameConfig.HEX_SPACING - TILE_RADIUS;
+    /**
+     * Palette for the ship model, lifted from the launcher icon and the splash screen: navy hull,
+     * pale planking, off-white canvas with the icon's navy bands, and a gold pennant that echoes the
+     * game's HUD. The deck covers most of the hull, so the ship still reads light on dark water.
+     */
+    private static final ShipStyle PLAYER_SHIP_STYLE = new ShipStyle(
+            new Color(0.23f, 0.24f, 0.44f, 1f),
+            new Color(0.93f, 0.86f, 0.66f, 1f),
+            new Color(0.12f, 0.13f, 0.29f, 1f),
+            new Color(0.95f, 0.95f, 0.90f, 1f),
+            new Color(0.40f, 0.27f, 0.15f, 1f),
+            new Color(0.95f, 0.80f, 0.36f, 1f));
+    /** The same silhouette burnt black with blood-red canvas, so friend and foe stay apart. */
+    private static final ShipStyle ENEMY_SHIP_STYLE = new ShipStyle(
+            new Color(0.15f, 0.14f, 0.15f, 1f),
+            new Color(0.36f, 0.32f, 0.28f, 1f),
+            new Color(0.45f, 0.11f, 0.11f, 1f),
+            new Color(0.26f, 0.24f, 0.24f, 1f),
+            new Color(0.20f, 0.17f, 0.14f, 1f),
+            new Color(0.88f, 0.20f, 0.20f, 1f));
+    /**
+     * Hull seen from above: pointed bow at +x, transom stern at -x. Every part of the model stays
+     * within the inradius of the hex outline (0.606), so the red ring is never covered.
+     */
+    private static final float[] SHIP_HULL = {
+            0.52f, 0.00f,
+            0.28f, 0.13f,
+            0.06f, 0.18f,
+            -0.24f, 0.185f,
+            -0.40f, 0.15f,
+            -0.48f, 0.078f,
+            -0.48f, -0.078f,
+            -0.40f, -0.15f,
+            -0.24f, -0.185f,
+            0.06f, -0.18f,
+            0.28f, -0.13f};
+    /** Planking inside the bulwark. */
+    private static final float[] SHIP_DECK = {
+            0.45f, 0.00f,
+            0.24f, 0.08f,
+            0.05f, 0.112f,
+            -0.21f, 0.115f,
+            -0.35f, 0.093f,
+            -0.42f, 0.048f,
+            -0.42f, -0.048f,
+            -0.35f, -0.093f,
+            -0.21f, -0.115f,
+            0.05f, -0.112f,
+            0.24f, -0.08f};
+    /** Raised quarterdeck over the stern. */
+    private static final float[] SHIP_CASTLE = {-0.38f, 0.082f, -0.20f, 0.11f, -0.20f, -0.11f, -0.38f, -0.082f};
+    /** Canvas spread on the yards, perpendicular to the keel, each with a stripe across it. */
+    private static final float[] SHIP_MAIN_SAIL = {0.05f, 0.205f, 0.19f, 0.205f, 0.19f, -0.205f, 0.05f, -0.205f};
+    private static final float[] SHIP_MAIN_STRIPE = {0.105f, 0.205f, 0.135f, 0.205f, 0.135f, -0.205f, 0.105f, -0.205f};
+    private static final float[] SHIP_MIZZEN_SAIL = {-0.17f, 0.16f, -0.03f, 0.16f, -0.03f, -0.16f, -0.17f, -0.16f};
+    private static final float[] SHIP_MIZZEN_STRIPE = {-0.12f, 0.16f, -0.08f, 0.16f, -0.08f, -0.16f, -0.12f, -0.16f};
+    /** Jib sheeted forward of the foremast. */
+    private static final float[] SHIP_JIB = {0.30f, 0.135f, 0.30f, -0.135f, 0.54f, 0.00f};
+    /** Pennant streaming off the stern. */
+    private static final float[] SHIP_PENNANT = {-0.46f, 0.045f, -0.46f, -0.045f, -0.55f, 0.00f};
     /** Which of the six hex edges faces each neighbour, derived from the hex layout math. */
     private static final int[] EDGE_INDEX = new int[HexDirection.values().length];
 
@@ -195,6 +258,31 @@ public class WorldScreen extends ScreenAdapter {
         shapeRenderer.setColor(SHIP_FRAME_COLOR);
         drawHexRing(6f + shipTilePixel.x, 4.2f + shipTilePixel.y, TILE_RADIUS, SHIP_FRAME_RADIUS);
 
+        // Both ships sit on top of that ring, well inside its inner edge.
+        Vector2 shipPixel = new Vector2(shipTilePixel);
+        if (traveling) {
+            Vector2 nextPixel = HexMath.hexToPixel(travelPath.get(travelIndex + 1), GameConfig.HEX_SPACING);
+            Vector2 step = new Vector2(nextPixel).sub(shipTilePixel);
+            if (!step.isZero()) {
+                float course = MathUtils.atan2Deg(step.y, step.x);
+                shipHeadingDeg = MathUtils.lerpAngleDeg(shipHeadingDeg, course, Math.min(1f, delta * 8f));
+            }
+            shipPixel = new Vector2(shipTilePixel).lerp(nextPixel, travelProgress);
+        }
+        float shipWorldX = 6f + shipPixel.x;
+        float shipWorldY = 4.2f + shipPixel.y;
+
+        if (enemyShip != null && discovered.contains(enemyShip.getPosition())) {
+            Vector2 enemyPixel = HexMath.hexToPixel(enemyShip.getPosition(), GameConfig.HEX_SPACING);
+            float enemyWorldX = 6f + enemyPixel.x;
+            float enemyWorldY = 4.2f + enemyPixel.y;
+            // A raider: it keeps its bow pointed at us wherever we are.
+            float enemyHeading = MathUtils.atan2Deg(shipWorldY - enemyWorldY, shipWorldX - enemyWorldX);
+            drawShip(enemyWorldX, enemyWorldY, enemyHeading, ENEMY_SHIP_STYLE);
+        }
+
+        drawShip(shipWorldX, shipWorldY, shipHeadingDeg, PLAYER_SHIP_STYLE);
+
         shapeRenderer.end();
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
 
@@ -206,20 +294,6 @@ public class WorldScreen extends ScreenAdapter {
                 shapeRenderer.rectLine(6f + from.x, 4.2f + from.y, 6f + to.x, 4.2f + to.y, 0.1f);
             }
         }
-
-        if (enemyShip != null && discovered.contains(enemyShip.getPosition())) {
-            Vector2 enemyPixel = HexMath.hexToPixel(enemyShip.getPosition(), GameConfig.HEX_SPACING);
-            shapeRenderer.setColor(0.85f, 0.1f, 0.1f, 1f);
-            shapeRenderer.circle(6f + enemyPixel.x, 4.2f + enemyPixel.y, 0.3f);
-        }
-
-        Vector2 shipPixel = HexMath.hexToPixel(playerShip.getPosition(), GameConfig.HEX_SPACING);
-        if (traveling) {
-            Vector2 nextPixel = HexMath.hexToPixel(travelPath.get(travelIndex + 1), GameConfig.HEX_SPACING);
-            shipPixel = new Vector2(shipPixel).lerp(nextPixel, travelProgress);
-        }
-        shapeRenderer.setColor(1f, 0.82f, 0.38f, 1f);
-        shapeRenderer.circle(6f + shipPixel.x, 4.2f + shipPixel.y, 0.3f);
 
         shapeRenderer.end();
 
@@ -561,6 +635,61 @@ public class WorldScreen extends ScreenAdapter {
                 vertices[to], vertices[to + 1], lineThickness * thicknessScale);
     }
 
+    /**
+     * Draws the ship model seen from above: dark hull, pale deck, navy quarterdeck, canvas spread on
+     * the yards, masts, a bowsprit with its jib and a pennant streaming off the stern. The whole
+     * model fits inside the hex outline, so the red ring around our own tile stays visible.
+     */
+    private void drawShip(float centerX, float centerY, float headingDeg, ShipStyle style) {
+        shapeRenderer.translate(centerX, centerY, 0f);
+        shapeRenderer.rotate(0f, 0f, 1f, headingDeg);
+
+        shapeRenderer.setColor(style.hull);
+        fillPolygon(SHIP_HULL);
+        shapeRenderer.setColor(style.deck);
+        fillPolygon(SHIP_DECK);
+        shapeRenderer.setColor(style.trim);
+        fillPolygon(SHIP_CASTLE);
+
+        shapeRenderer.setColor(style.canvas);
+        fillPolygon(SHIP_MAIN_SAIL);
+        fillPolygon(SHIP_MIZZEN_SAIL);
+        fillPolygon(SHIP_JIB);
+        shapeRenderer.setColor(style.trim);
+        fillPolygon(SHIP_MAIN_STRIPE);
+        fillPolygon(SHIP_MIZZEN_STRIPE);
+
+        shapeRenderer.setColor(style.mast);
+        shapeRenderer.rectLine(0.34f, 0f, 0.56f, 0f, 0.04f);
+        shapeRenderer.circle(0.30f, 0f, 0.024f, 12);
+        shapeRenderer.circle(0.12f, 0f, 0.032f, 12);
+        shapeRenderer.circle(-0.10f, 0f, 0.028f, 12);
+
+        shapeRenderer.setColor(style.flag);
+        fillPolygon(SHIP_PENNANT);
+
+        shapeRenderer.identity();
+    }
+
+    /** Paints a convex polygon given as x/y pairs, as a triangle fan around its own centroid. */
+    private void fillPolygon(float[] points) {
+        int count = points.length / 2;
+        float centerX = 0f;
+        float centerY = 0f;
+        for (int i = 0; i < count; i++) {
+            centerX += points[i * 2];
+            centerY += points[i * 2 + 1];
+        }
+        centerX /= count;
+        centerY /= count;
+        for (int i = 0; i < count; i++) {
+            int next = (i + 1) % count;
+            shapeRenderer.triangle(centerX, centerY,
+                    points[i * 2], points[i * 2 + 1],
+                    points[next * 2], points[next * 2 + 1]);
+        }
+    }
+
     /** Debug view: flat terrain colours, exactly as the map has always been drawn. */
     private void drawDebugTile(HexTile tile, float centerX, float centerY) {
         Color color = debugColorFor(tile.getTerrain());
@@ -877,6 +1006,25 @@ public class WorldScreen extends ScreenAdapter {
 
     public CorsairGame getGame() {
         return game;
+    }
+
+    /** Colours of one ship model: hull, deck planking, navy trim, canvas, spars and pennant. */
+    private static final class ShipStyle {
+        private final Color hull;
+        private final Color deck;
+        private final Color trim;
+        private final Color canvas;
+        private final Color mast;
+        private final Color flag;
+
+        private ShipStyle(Color hull, Color deck, Color trim, Color canvas, Color mast, Color flag) {
+            this.hull = hull;
+            this.deck = deck;
+            this.trim = trim;
+            this.canvas = canvas;
+            this.mast = mast;
+            this.flag = flag;
+        }
     }
 }
 
