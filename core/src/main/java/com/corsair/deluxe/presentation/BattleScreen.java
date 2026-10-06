@@ -196,14 +196,19 @@ public class BattleScreen extends ScreenAdapter {
             message = "Luk " + (hatchIndex + 1) + " jest zniszczony.";
             return;
         }
-        if (state.getHatchCrew(BattleSide.PLAYER, hatchIndex) <= 0) {
+        int waiting = state.getHatchCrew(BattleSide.PLAYER, hatchIndex);
+        if (waiting <= 0) {
             message = "Luk " + (hatchIndex + 1) + " jest pusty.";
             return;
         }
         openHatches[hatchIndex] = !openHatches[hatchIndex];
-        message = openHatches[hatchIndex]
-                ? "Luk " + (hatchIndex + 1) + " otwarty - strzalka wyprowadzi zaloge."
-                : "Luk " + (hatchIndex + 1) + " zamkniety.";
+        if (!openHatches[hatchIndex]) {
+            message = "Luk " + (hatchIndex + 1) + " zamkniety (czeka " + waiting + " pir.).";
+        } else if (state.canRelease(BattleSide.PLAYER, hatchIndex)) {
+            message = "Luk " + (hatchIndex + 1) + " otwarty - strzalka wyprowadzi zaloge.";
+        } else {
+            message = "Luk " + (hatchIndex + 1) + " otwarty, ale pole wejsciowe zajete - odsun pirata.";
+        }
     }
 
     private boolean hasOpenHatches() {
