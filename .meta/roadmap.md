@@ -74,6 +74,7 @@ Porty, handel i ekonomia są odłożone na późniejsze, opcjonalne rozszerzenie
 * [x] Kółka przy lukach pokazują piratów pozostałych w luku (po jego zewnętrznej stronie, od góry); brak kółka = pirat już wyszedł na siatkę; otwarty luk świeci na złoto i pokazuje pierścień na polu wejściowym.
 * [x] Dotykowy interfejs: tapnięcie własnego luku przełącza go (otwarty/zamknięty), trzy strzałki (do przodu / ukos w górę / ukos w dół) = wyprowadzenie załogi z otwartych luków, a gdy wszystkie są zamknięte - skok; po wyprowadzeniu luki zamykają się same; przycisk ucieczki.
 * [x] Panel statusu: rezerwa, załoga na sieci, sprawne luki, numer tury, log ostatniej akcji.
+* [x] Czcionka bitwy rysowana w skali co najmniej 2x (panel statusu u góry, log u dołu), z filtrem liniowym i automatycznym zmniejszeniem na bardzo małych ekranach; układ planszy i przycisków liczy się od zmierzonej wysokości tekstu.
 * [x] Powrót na mapę świata: straty załogi, łup za zwycięstwo (rum, żywność), usunięcie pokonanego przeciwnika, cofnięcie przy ucieczce/remisie; porażka wraca do menu głównego.
 
 ### 3.3 Dalszy rozwój bitwy

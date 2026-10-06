@@ -6,6 +6,7 @@ import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Texture.TextureFilter;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -35,6 +36,14 @@ public class BattleScreen extends ScreenAdapter {
     private static final float ENEMY_THINK_SECONDS = 0.8f;
     private static final float INPUT_DELAY_SECONDS = 0.6f;
     private static final int AI_DEPTH = 3;
+    /** Cells smaller than this make the board unreadable, so the text scale is reduced instead. */
+    private static final float MIN_CELL = 26f;
+    /** Longest variant of the turn line, so the top text band never has to grow. */
+    private static final String WORST_TURN_LINE = "Tura " + BattleState.MAX_TURNS + "/" + BattleState.MAX_TURNS
+            + " - PORAZKA - dotknij, aby kontynuowac";
+    /** Longest realistic battle log entry; it is the text the bottom band is sized for. */
+    private static final String LOG_RESERVE =
+            "Wrog: wyprowadzenie 5 pir., pokonani: 5, wpadli: 5, zablokowane luki: 5, wycofani: 5";
 
     private static final Color PLAYER_COLOR = new Color(0.25f, 0.55f, 1f, 1f);
     private static final Color ENEMY_COLOR = new Color(0.9f, 0.2f, 0.2f, 1f);
@@ -59,13 +68,19 @@ public class BattleScreen extends ScreenAdapter {
 
     private Phase phase = Phase.PLAYER_TURN;
     private BattleOutcome outcome = BattleOutcome.ONGOING;
-    private String message = "Tapnij luk (lewa kolumna) aby go otworzyc, potem strzalka wyprowadza zaloge.";
+    private String message = "Tapnij luk, aby go otworzyc; strzalka wyprowadza zaloge.";
     private float phaseTime;
     private float elapsed;
     private boolean leaving;
 
     private float width;
     private float height;
+    private float margin;
+    private float lineHeight;
+    private float textScale;
+    private float textWidth;
+    private float topBand;
+    private float bottomBand;
     private float boardX;
     private float boardY;
     private float cell;
@@ -74,12 +89,17 @@ public class BattleScreen extends ScreenAdapter {
     private float buttonSize;
     private float fleeX;
     private float fleeY;
+    private float fleeHalfWidth;
+    private float fleeHalfHeight;
 
     public BattleScreen(CorsairGame game, WorldScreen returnScreen, Ship playerShip, Ship enemyShip) {
         this.game = game;
         this.returnScreen = returnScreen;
         this.playerShip = playerShip;
         this.enemyShip = enemyShip;
+
+        // The default font is a small bitmap; it is drawn several times larger here
+        font.getRegion().getTexture().setFilter(TextureFilter.Linear, TextureFilter.Linear);
 
         int holePairs = Math.min(4, 2 + (100 - playerShip.getHullIntegrity()) / 50);
         this.state = BattleState.create(holePairs, random);
@@ -102,19 +122,53 @@ public class BattleScreen extends ScreenAdapter {
         width = w;
         height = h;
         camera.setToOrtho(false, w, h);
-        cell = Math.min(h * 0.85f / BattleState.HEIGHT, w * 0.55f / BattleState.WIDTH);
+        margin = Math.max(12f, Math.min(w, h) * 0.02f);
+
+        // The battle screen used to run at 'h / 760', which is barely readable on a phone, so the text is
+        // drawn twice as large. On very small screens the board would not fit any more, so the multiplier
+        // drops until the cells are usable again.
+        float[] multipliers = { 2f, 1.6f, 1.3f, 1f };
+        for (int i = 0; i < multipliers.length; i++) {
+            computeGeometry(Math.max(0.8f, h / 760f) * multipliers[i]);
+            if (cell >= MIN_CELL || i == multipliers.length - 1) {
+                break;
+            }
+        }
+    }
+
+    private void computeGeometry(float textScale) {
+        this.textScale = textScale;
+        font.getData().setScale(textScale);
+        lineHeight = font.getLineHeight();
+        float gap = lineHeight * 0.12f;
+
+        // Full-width text bands above and below the board; the board and the arrows share the middle.
+        // Both bands are sized for the longest text they can ever show, never for the current one.
+        textWidth = Math.max(40f, width - 2 * margin);
+        topBand = measure(playerLine(), textWidth) + measure(enemyLine(), textWidth)
+                + Math.max(measure(turnLine(), textWidth), measure(WORST_TURN_LINE, textWidth))
+                + measure(hintLine(), textWidth) + gap * 3f;
+        bottomBand = Math.max(lineHeight * 1.6f, measure(LOG_RESERVE, textWidth) + lineHeight * 0.4f);
+        float arrowZone = Math.max(width * 0.14f, lineHeight * 2.4f);
+        float usableW = width - 2 * margin - arrowZone;
+        float usableH = height - 2 * margin - topBand - bottomBand;
+
+        // Half a cell of slack on each side of the board for the reserve markers
+        cell = Math.max(1f, Math.min(usableH / BattleState.HEIGHT, usableW / (BattleState.WIDTH + 0.9f)));
         float boardWidth = cell * BattleState.WIDTH;
-        boardX = (w - boardWidth) / 2f;
-        boardY = (h - cell * BattleState.HEIGHT) / 2f;
-        font.getData().setScale(Math.max(0.8f, h / 760f));
+        boardX = margin + cell * 0.45f + (usableW - boardWidth - cell * 0.9f) / 2f;
+        boardY = margin + bottomBand + (usableH - cell * BattleState.HEIGHT) / 2f;
 
         float rightEdge = boardX + boardWidth;
-        float rightWidth = w - rightEdge;
+        float rightWidth = width - margin - rightEdge;
         compassX = rightEdge + rightWidth / 2f;
-        buttonSize = Math.min(rightWidth / 3.4f, h * 0.17f);
-        compassY = h * 0.55f;
+        compassY = boardY + cell * BattleState.HEIGHT / 2f;
+        buttonSize = Math.min(rightWidth / 3.4f, usableH * 0.24f);
+
+        fleeHalfWidth = Math.max(buttonSize * 1.5f, rightWidth * 0.45f);
+        fleeHalfHeight = Math.max(buttonSize * 0.4f, lineHeight * 0.75f);
         fleeX = compassX;
-        fleeY = compassY - buttonSize * 2.2f;
+        fleeY = Math.max(boardY + fleeHalfHeight, compassY - buttonSize * 2.2f);
     }
 
     @Override
@@ -153,7 +207,7 @@ public class BattleScreen extends ScreenAdapter {
         float touchX = Gdx.input.getX() * width / Gdx.graphics.getWidth();
         float touchY = height - Gdx.input.getY() * height / Gdx.graphics.getHeight();
 
-        if (Math.abs(touchX - fleeX) < buttonSize * 1.5f && Math.abs(touchY - fleeY) < buttonSize * 0.4f) {
+        if (Math.abs(touchX - fleeX) < fleeHalfWidth && Math.abs(touchY - fleeY) < fleeHalfHeight) {
             flee();
             return;
         }
@@ -242,10 +296,8 @@ public class BattleScreen extends ScreenAdapter {
         ActionResult result = state.apply(action);
         if (action.isDeploy()) {
             closeHatches();
-            message = "Ty: " + describe(action, result) + " (luki zamkniete)";
-        } else {
-            message = "Ty: " + describe(action, result);
         }
+        message = "Ty: " + describe(action, result);
         afterAction();
     }
 
@@ -279,15 +331,15 @@ public class BattleScreen extends ScreenAdapter {
     private String describe(BattleAction action, ActionResult result) {
         StringBuilder text = new StringBuilder();
         if (action.isDeploy()) {
-            text.append("wyprowadzenie zalogi: ").append(result.getDeployed()).append(" pir.");
+            text.append("wyprowadzenie ").append(result.getDeployed()).append(" pir.");
         } else {
-            text.append("skok: ").append(directionName(action.getDirection()));
+            text.append("skok ").append(directionName(action.getDirection()));
         }
         if (result.getKilled() > 0) {
             text.append(", pokonani: ").append(result.getKilled());
         }
         if (result.getFell() > 0) {
-            text.append(", wpadli w dziure: ").append(result.getFell());
+            text.append(", wpadli: ").append(result.getFell());
         }
         if (result.getHatchesDisabled() > 0) {
             text.append(", zablokowane luki: ").append(result.getHatchesDisabled());
@@ -474,49 +526,56 @@ public class BattleScreen extends ScreenAdapter {
 
         float fleeShade = phase == Phase.PLAYER_TURN ? 1f : 0.45f;
         shapes.setColor(0.45f * fleeShade, 0.12f * fleeShade, 0.12f * fleeShade, 1f);
-        shapes.rect(fleeX - buttonSize * 1.5f, fleeY - buttonSize * 0.4f, buttonSize * 3f, buttonSize * 0.8f);
+        shapes.rect(fleeX - fleeHalfWidth, fleeY - fleeHalfHeight, fleeHalfWidth * 2f, fleeHalfHeight * 2f);
     }
 
     private void drawTexts() {
-        float margin = 20f;
-        float leftWidth = Math.max(60f, boardX - 2 * margin);
+        float gap = lineHeight * 0.12f;
         float y = height - margin;
 
         font.setColor(PLAYER_COLOR);
-        y = drawBlock("TY (" + playerShip.getName() + ")\nrezerwa: " + state.getReserve(BattleSide.PLAYER)
-                + "\nna sieci: " + state.getCrewOnNet(BattleSide.PLAYER)
-                + "\nluki: " + (BattleState.HATCH_ROWS.length - state.getDisabledHatches(BattleSide.PLAYER))
-                + "/" + BattleState.HATCH_ROWS.length, margin, y, leftWidth);
+        y = drawBlock(playerLine(), margin, y, textWidth);
 
         font.setColor(ENEMY_COLOR);
-        y = drawBlock("WROG (" + enemyShip.getName() + ")\nrezerwa: " + state.getReserve(BattleSide.ENEMY)
-                + "\nna sieci: " + state.getCrewOnNet(BattleSide.ENEMY)
-                + "\nluki: " + (BattleState.HATCH_ROWS.length - state.getDisabledHatches(BattleSide.ENEMY))
-                + "/" + BattleState.HATCH_ROWS.length, margin, y - 20f, leftWidth);
+        y = drawBlock(enemyLine(), margin, y - gap, textWidth);
 
-        font.setColor(Color.LIGHT_GRAY);
-        y = drawBlock("Tura " + (state.getTurnsPlayed() + 1) + "/" + BattleState.MAX_TURNS, margin, y - 20f, leftWidth);
+        font.setColor(phase == Phase.FINISHED || hasOpenHatches() ? Color.GOLD : Color.LIGHT_GRAY);
+        y = drawBlock(turnLine(), margin, y - gap, textWidth);
 
-        font.setColor(hasOpenHatches() ? Color.GOLD : Color.LIGHT_GRAY);
-        y = drawBlock("otwarte luki: " + openHatchCount() + " (tap = otworz/zamknij)", margin, y - 20f, leftWidth);
+        drawBlock(hintLine(), margin, y - gap, textWidth);
 
         font.setColor(Color.WHITE);
-        drawBlock(message, margin, y - 20f, leftWidth);
+        drawBlockBottom(message, margin, textWidth);
+        drawFleeLabel();
+    }
 
-        float rightX = boardX + cell * BattleState.WIDTH + margin;
-        float rightWidth = Math.max(60f, width - rightX - margin);
-        font.setColor(Color.GOLD);
-        drawBlock(statusText(), rightX, height - margin, rightWidth);
+    private String playerLine() {
+        return "TY (" + playerShip.getName() + "): rezerwa " + state.getReserve(BattleSide.PLAYER)
+                + ", na sieci " + state.getCrewOnNet(BattleSide.PLAYER)
+                + ", luki " + (BattleState.HATCH_ROWS.length - state.getDisabledHatches(BattleSide.PLAYER))
+                + "/" + BattleState.HATCH_ROWS.length;
+    }
 
-        font.setColor(Color.WHITE);
-        drawCentered("UCIECZKA", fleeX, fleeY);
+    private String enemyLine() {
+        return "WROG (" + enemyShip.getName() + "): rezerwa " + state.getReserve(BattleSide.ENEMY)
+                + ", na sieci " + state.getCrewOnNet(BattleSide.ENEMY)
+                + ", luki " + (BattleState.HATCH_ROWS.length - state.getDisabledHatches(BattleSide.ENEMY))
+                + "/" + BattleState.HATCH_ROWS.length;
+    }
+
+    private String turnLine() {
+        return "Tura " + (state.getTurnsPlayed() + 1) + "/" + BattleState.MAX_TURNS + " - " + statusText();
+    }
+
+    private String hintLine() {
+        return "otwarte luki: " + openHatchCount() + " (tap = otworz/zamknij)";
     }
 
     private String statusText() {
         switch (phase) {
             case PLAYER_TURN: return hasOpenHatches() ? "Twoja tura: wyprowadzenie" : "Twoja tura: skok";
             case ENEMY_TURN: return "Tura wroga...";
-            default: return resultText() + "\nDotknij, aby kontynuowac";
+            default: return resultText() + " - dotknij, aby kontynuowac";
         }
     }
 
@@ -533,6 +592,31 @@ public class BattleScreen extends ScreenAdapter {
         layout.setText(font, text, font.getColor(), targetWidth, Align.left, true);
         font.draw(batch, layout, x, y);
         return y - layout.height;
+    }
+
+    /** Height the text needs when wrapped into {@code targetWidth}. */
+    private float measure(String text, float targetWidth) {
+        layout.setText(font, text, Color.WHITE, targetWidth, Align.left, true);
+        return layout.height;
+    }
+
+    /** Draws the log line so that it grows upwards from just above the bottom edge. */
+    private void drawBlockBottom(String text, float x, float targetWidth) {
+        layout.setText(font, text, font.getColor(), targetWidth, Align.left, true);
+        font.draw(batch, layout, x, margin + Math.min(layout.height, bottomBand));
+    }
+
+    /** Draws "UCIECZKA" in the middle of the button, shrinking it only if the button is too narrow. */
+    private void drawFleeLabel() {
+        layout.setText(font, "UCIECZKA");
+        float maxWidth = fleeHalfWidth * 2f - lineHeight * 0.4f;
+        if (layout.width > maxWidth && layout.width > 0f) {
+            font.getData().setScale(textScale * (maxWidth / layout.width));
+            drawCentered("UCIECZKA", fleeX, fleeY);
+            font.getData().setScale(textScale);
+            return;
+        }
+        drawCentered("UCIECZKA", fleeX, fleeY);
     }
 
     private void drawCentered(String text, float centerX, float centerY) {
