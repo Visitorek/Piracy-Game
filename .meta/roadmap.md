@@ -123,6 +123,8 @@ Porty, handel i ekonomia są odłożone na późniejsze, opcjonalne rozszerzenie
 
 * [x] Dopracowanie warstwy prezentacji mapy: (1) granice heksów rysowane są jako trapezy (`drawHexEdge`) z końcami wydłużonymi o połowę szerokości pasa, więc pasy dwóch krawędzi schodzących się w wierzchołku zachodzą na siebie i nie zostawiają niedomknięć na styku (prostokąt z `rectLine` kończył się dokładnie w wierzchołku; weryfikacja numeryczna: 0 niepokrytych próbek wokół wierzchołka dla szerokości 1x/2x/4x); (2) czerwony pierścień wokół statku jest węższy (`SHIP_FRAME_WIDTH = 0.12`) i kotwiczony do paska łączenia - jego wewnętrzna krawędź pokrywa się z wewnętrzną krawędzią pasa przejścia (przeliczenie przez `HEX_APOTHEM_RATIO = cos 30°`, bo pierścień jest heksem), z ograniczeniem `SHIP_FRAME_MAX_INSET`, żeby przy mocnym oddaleniu kamery nie wcinał się w statek; (3) rufowa nadbudówka jest deskowana tym samym drewnem co resztą pokładu (`SHIP_CASTLE` rysowany kolorem `deck`) - zniknęła granatowa plama na rufie.
 
+* [x] Jednolita szerokość granic heksów: `EDGE_SCALE = 3.0` obowiązuje teraz wszystkie krawędzie (wcześniej 2x dla styku tego samego terenu i 4x dla przejścia między terenami). Jasne pasy przejść (rafa, piasek, urwisko) były dwa razy grubsze od ciemnych granic wody, przez co styk wyglądał nierówno - teraz szerokość jest wspólna, a różnicę robi wyłącznie kolor. Czerwony pierścień statku jest kotwiczony do tej samej wartości, więc jego wewnętrzna krawędź nadal pokrywa się z pasem granicy.
+
 ### 5.3 Przygotowanie do Publikacji
 * [ ] Wygenerowanie podpisanej paczki wydaniowej (Android App Bundle - `.aab`).
 * [ ] Przygotowanie grafik sklepowych (zrzuty ekranu, ikona aplikacji, baner).

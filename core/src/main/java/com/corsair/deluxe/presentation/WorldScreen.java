@@ -76,10 +76,12 @@ public class WorldScreen extends ScreenAdapter {
     private static final float TILE_ALPHA_FOGGED = 0.30f;
     private static final float TILE_FILL_ALPHA_VISIBLE = 0.80f;
     private static final float TILE_FILL_ALPHA_FOGGED = 0.22f;
-    /** Terrain borders are drawn thicker than the plain hex grid so the transitions read clearly. */
-    private static final float TERRAIN_EDGE_SCALE = 2.0f;
-    /** Where two different terrains meet, the contact line gets double that thickness again. */
-    private static final float TRANSITION_EDGE_SCALE = TERRAIN_EDGE_SCALE * 2f;
+    /**
+     * Every hex border is drawn at this thickness, be it a seam between two tiles of the same
+     * terrain or the contact line between two different ones - only the colour tells them apart.
+     * Giving transitions a band of their own made the pale ones twice as fat as the dark ones.
+     */
+    private static final float EDGE_SCALE = 3.0f;
     private static final Color BACKGROUND_COLOR = new Color(0.45f, 0.45f, 0.45f, 1f);
     private static final Color CATEGORY_ISLAND = new Color(0.45f, 0.52f, 0.30f, 1f);
     private static final Color CATEGORY_SHALLOW = new Color(0.32f, 0.70f, 0.74f, 1f);
@@ -256,7 +258,7 @@ public class WorldScreen extends ScreenAdapter {
         // the coloured seam running between our tile and its neighbours: the ring's inner edge lines
         // up with the inner edge of that seam and stays well clear of the neighbouring hexes.
         Vector2 shipTilePixel = HexMath.hexToPixel(playerShip.getPosition(), GameConfig.HEX_SPACING);
-        float seamHalfWidth = TRANSITION_EDGE_SCALE * lineThickness * 0.5f;
+        float seamHalfWidth = EDGE_SCALE * lineThickness * 0.5f;
         float ringInnerRadius = TILE_RADIUS - Math.min(SHIP_FRAME_MAX_INSET, seamHalfWidth / HEX_APOTHEM_RATIO);
         shapeRenderer.setColor(SHIP_FRAME_COLOR);
         drawHexRing(6f + shipTilePixel.x, 4.2f + shipTilePixel.y, ringInnerRadius,
@@ -727,8 +729,8 @@ public class WorldScreen extends ScreenAdapter {
     /**
      * Normal view: the hex is filled with its terrain category colour and every edge is painted by
      * what lies on its other side - the tile's own category colour when the neighbour shares its
-     * terrain, otherwise the colour of the transition between the two (sand, cliff, reef) drawn at
-     * double thickness. Both tiles paint a shared edge, so borders always match.
+     * terrain, otherwise the colour of the transition between the two (sand, cliff, reef). Every
+     * border is the same width; both tiles paint a shared edge, so borders always match.
      */
     private void drawPaintedTile(HexTile tile, float centerX, float centerY) {
         boolean visible = isVisible(tile.getCoordinate());
@@ -755,8 +757,7 @@ public class WorldScreen extends ScreenAdapter {
                 color = categoryColorFor(tile.getTerrain());
             }
             shapeRenderer.setColor(color.r, color.g, color.b, edgeAlpha);
-            drawHexEdge(centerX, centerY, TILE_RADIUS, EDGE_INDEX[direction.ordinal()],
-                    sharedTerrain ? TERRAIN_EDGE_SCALE : TRANSITION_EDGE_SCALE);
+            drawHexEdge(centerX, centerY, TILE_RADIUS, EDGE_INDEX[direction.ordinal()], EDGE_SCALE);
         }
     }
 
