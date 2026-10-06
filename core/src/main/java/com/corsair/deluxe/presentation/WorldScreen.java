@@ -92,6 +92,14 @@ public class WorldScreen extends ScreenAdapter {
     private static final Color CLIFF_COLOR = new Color(0.38f, 0.31f, 0.25f, 1f);
     /** Shallows meet the deep: a line of pale surf. */
     private static final Color REEF_COLOR = new Color(0.66f, 0.84f, 0.88f, 1f);
+    /** Our ship's hex keeps its normal terrain colours and is ringed in red to stand out. */
+    private static final Color SHIP_FRAME_COLOR = new Color(0.82f, 0.13f, 0.13f, 0.95f);
+    /**
+     * Outer radius of that ring. Its edge reaches exactly the edge of every neighbouring hex, so the
+     * ring fills the gap between the tiles: a neighbour's border sits at {@code 2 * HEX_SPACING -
+     * TILE_RADIUS} circumradii from our centre.
+     */
+    private static final float SHIP_FRAME_RADIUS = 2f * GameConfig.HEX_SPACING - TILE_RADIUS;
     /** Which of the six hex edges faces each neighbour, derived from the hex layout math. */
     private static final int[] EDGE_INDEX = new int[HexDirection.values().length];
 
@@ -170,7 +178,8 @@ public class WorldScreen extends ScreenAdapter {
             float centerX = 6f + pixel.x;
             float centerY = 4.2f + pixel.y;
 
-            if (selectedTile != null && selectedTile.equals(tile.getCoordinate())) {
+            boolean shipTile = playerShip.getPosition().equals(tile.getCoordinate());
+            if (!shipTile && selectedTile != null && selectedTile.equals(tile.getCoordinate())) {
                 shapeRenderer.setColor(1f, 0.98f, 0.7f, 0.8f);
                 drawHexOutline(centerX, centerY, TILE_RADIUS);
             } else if (debug) {
@@ -179,6 +188,12 @@ public class WorldScreen extends ScreenAdapter {
                 drawPaintedTile(tile, centerX, centerY);
             }
         }
+
+        // The ship's hex is painted like every other tile; this ring is what sets it apart. Drawn
+        // after the whole map so that no neighbouring border can bleed over it.
+        Vector2 shipTilePixel = HexMath.hexToPixel(playerShip.getPosition(), GameConfig.HEX_SPACING);
+        shapeRenderer.setColor(SHIP_FRAME_COLOR);
+        drawHexRing(6f + shipTilePixel.x, 4.2f + shipTilePixel.y, TILE_RADIUS, SHIP_FRAME_RADIUS);
 
         shapeRenderer.end();
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
@@ -515,6 +530,25 @@ public class WorldScreen extends ScreenAdapter {
             shapeRenderer.triangle(centerX, centerY,
                     vertices[i * 2], vertices[i * 2 + 1],
                     vertices[next * 2], vertices[next * 2 + 1]);
+        }
+    }
+
+    /** Paints a solid hexagonal ring between two radii, in the colour the caller has already set. */
+    private void drawHexRing(float centerX, float centerY, float innerRadius, float outerRadius) {
+        float[] inner = buildHexVertices(centerX, centerY, innerRadius);
+        float[] outer = buildHexVertices(centerX, centerY, outerRadius);
+        for (int i = 0; i < 6; i++) {
+            int next = (i + 1) % 6;
+            float innerFromX = inner[i * 2];
+            float innerFromY = inner[i * 2 + 1];
+            float innerToX = inner[next * 2];
+            float innerToY = inner[next * 2 + 1];
+            float outerFromX = outer[i * 2];
+            float outerFromY = outer[i * 2 + 1];
+            float outerToX = outer[next * 2];
+            float outerToY = outer[next * 2 + 1];
+            shapeRenderer.triangle(innerFromX, innerFromY, innerToX, innerToY, outerFromX, outerFromY);
+            shapeRenderer.triangle(outerFromX, outerFromY, innerToX, innerToY, outerToX, outerToY);
         }
     }
 
