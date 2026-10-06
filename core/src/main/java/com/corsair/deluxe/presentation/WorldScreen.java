@@ -59,6 +59,14 @@ public class WorldScreen extends ScreenAdapter {
     private boolean lookingAround;
     private float lookElapsed;
     private final Set<HexCoordinate> discovered = new HashSet<HexCoordinate>();
+    private String hudMessage;
+    private String hudMessageDetail;
+    private float hudMessageElapsed;
+    private static final float HUD_MESSAGE_SECONDS = 2.2f;
+    private static final float HUD_MESSAGE_FADE_SECONDS = 0.6f;
+    private static final Color HUD_MESSAGE_PANEL_COLOR = new Color(0.07f, 0.09f, 0.14f, 0.88f);
+    private static final Color HUD_MESSAGE_TEXT_COLOR = new Color(0.97f, 0.87f, 0.62f, 1f);
+    private static final Color HUD_MESSAGE_DETAIL_COLOR = new Color(0.88f, 0.88f, 0.86f, 1f);
 
     private static final float TILE_RADIUS = 0.70f;
     private static final float TILE_ALPHA_VISIBLE = 0.85f;
@@ -133,6 +141,7 @@ public class WorldScreen extends ScreenAdapter {
         handleInput(delta);
         updateTravel(delta);
         updateLookAround(delta);
+        updateHudMessage(delta);
         cameraManager.update();
 
         ScreenUtils.clear(BACKGROUND_COLOR);
@@ -198,6 +207,88 @@ public class WorldScreen extends ScreenAdapter {
             drawDebugBattleButton();
         }
         drawMenuButton();
+        drawHudMessage();
+    }
+
+    /** Shows a short, self-expiring note in the top centre of the screen. */
+    private void showHudMessage(String message, String detail) {
+        this.hudMessage = message;
+        this.hudMessageDetail = detail;
+        this.hudMessageElapsed = 0f;
+    }
+
+    private void updateHudMessage(float delta) {
+        if (hudMessage == null) {
+            return;
+        }
+        hudMessageElapsed += delta;
+        if (hudMessageElapsed >= HUD_MESSAGE_SECONDS) {
+            hudMessage = null;
+            hudMessageDetail = null;
+        }
+    }
+
+    private void drawHudMessage() {
+        if (hudMessage == null) {
+            return;
+        }
+        float density = Gdx.graphics.getDensity();
+        float alpha = Math.min(1f, (HUD_MESSAGE_SECONDS - hudMessageElapsed) / HUD_MESSAGE_FADE_SECONDS);
+        alpha = Math.max(0f, alpha);
+
+        float baseScale = font.getData().scaleX;
+        font.getData().setScale(baseScale * 1.15f);
+        glyphLayout.setText(font, hudMessage);
+        float titleWidth = glyphLayout.width;
+        float titleHeight = glyphLayout.height;
+
+        boolean hasDetail = hudMessageDetail != null;
+        float detailWidth = 0f;
+        float detailHeight = 0f;
+        if (hasDetail) {
+            font.getData().setScale(baseScale * 0.75f);
+            glyphLayout.setText(font, hudMessageDetail);
+            detailWidth = glyphLayout.width;
+            detailHeight = glyphLayout.height;
+        }
+        font.getData().setScale(baseScale);
+
+        float padding = 22f * density;
+        float gap = hasDetail ? 10f * density : 0f;
+        float panelWidth = Math.max(titleWidth, detailWidth) + padding * 2f;
+        float panelHeight = titleHeight + gap + detailHeight + padding * 2f;
+        float centerX = Gdx.graphics.getWidth() / 2f;
+        float panelTop = Gdx.graphics.getHeight() - 28f * density;
+        float panelLeft = centerX - panelWidth / 2f;
+        float panelBottom = panelTop - panelHeight;
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shapeRenderer.setProjectionMatrix(hudCamera.combined);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(HUD_MESSAGE_PANEL_COLOR.r, HUD_MESSAGE_PANEL_COLOR.g,
+                HUD_MESSAGE_PANEL_COLOR.b, HUD_MESSAGE_PANEL_COLOR.a * alpha);
+        shapeRenderer.rect(panelLeft, panelBottom, panelWidth, panelHeight);
+        shapeRenderer.setColor(0.85f, 0.7f, 0.35f, 0.9f * alpha);
+        shapeRenderer.rect(panelLeft, panelBottom, panelWidth, Math.max(2f, 3f * density));
+        shapeRenderer.end();
+
+        spriteBatch.setProjectionMatrix(hudCamera.combined);
+        spriteBatch.begin();
+        font.getData().setScale(baseScale * 1.15f);
+        font.setColor(HUD_MESSAGE_TEXT_COLOR.r, HUD_MESSAGE_TEXT_COLOR.g,
+                HUD_MESSAGE_TEXT_COLOR.b, HUD_MESSAGE_TEXT_COLOR.a * alpha);
+        font.draw(spriteBatch, hudMessage, centerX - titleWidth / 2f, panelTop - padding);
+        if (hasDetail) {
+            font.getData().setScale(baseScale * 0.75f);
+            font.setColor(HUD_MESSAGE_DETAIL_COLOR.r, HUD_MESSAGE_DETAIL_COLOR.g,
+                    HUD_MESSAGE_DETAIL_COLOR.b, HUD_MESSAGE_DETAIL_COLOR.a * alpha);
+            font.draw(spriteBatch, hudMessageDetail, centerX - detailWidth / 2f,
+                    panelTop - padding - titleHeight - gap);
+        }
+        font.getData().setScale(baseScale);
+        font.setColor(Color.WHITE);
+        spriteBatch.end();
     }
 
     /** Debug helper: prints the axial coordinate of every discovered tile. */
@@ -577,7 +668,7 @@ public class WorldScreen extends ScreenAdapter {
 
     private void selectNeighbor(HexDirection direction) {
         HexCoordinate target = playerShip.getPosition().neighbor(direction);
-        if (isBusy() || !discovered.contains(target) || !canSailTo(target)) {
+        if (isBlockedMove(target)) {
             return;
         }
         selectedTile = target;
@@ -648,8 +739,19 @@ public class WorldScreen extends ScreenAdapter {
 
     /**
      * Ships sail, they do not walk: land is out of bounds unless debug mode is on, which lets the
-     * player beach the ship anywhere for testing.
+     * player beach the ship anywhere for testing. A refused move warns the player on the HUD.
      */
+    private boolean isBlockedMove(HexCoordinate coordinate) {
+        if (isBusy() || !discovered.contains(coordinate)) {
+            return true;
+        }
+        if (canSailTo(coordinate)) {
+            return false;
+        }
+        showHudMessage("Mielizna!", "Statek nie wplynie na lad");
+        return true;
+    }
+
     private boolean canSailTo(HexCoordinate coordinate) {
         if (GameSettings.isDebugMode()) {
             return true;
@@ -659,7 +761,7 @@ public class WorldScreen extends ScreenAdapter {
     }
 
     public void selectTile(HexCoordinate coordinate) {
-        if (isBusy() || !discovered.contains(coordinate) || !canSailTo(coordinate)) {
+        if (isBlockedMove(coordinate)) {
             return;
         }
         this.selectedTile = coordinate;
@@ -668,7 +770,7 @@ public class WorldScreen extends ScreenAdapter {
     }
 
     public void moveTo(HexCoordinate coordinate) {
-        if (isBusy() || !discovered.contains(coordinate) || !canSailTo(coordinate)) {
+        if (isBlockedMove(coordinate)) {
             return;
         }
         selectTile(coordinate);
