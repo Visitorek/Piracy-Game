@@ -77,13 +77,18 @@ public class WorldScreen extends ScreenAdapter {
     private static final float TILE_FILL_ALPHA_VISIBLE = 0.80f;
     private static final float TILE_FILL_ALPHA_FOGGED = 0.22f;
     /**
+     * How far a border stops short of the edge of its cell. Two neighbours each leave this much, so a
+     * thin line of background runs between their borders and single hexes stay readable instead of
+     * the borders melting into one another.
+     */
+    private static final float HEX_SEPARATOR = 0.01f;
+    /**
      * Every hex border is the same band, be it a seam between two tiles of the same terrain or the
      * contact line between two different ones - only the colour tells them apart. The band is the
-     * rim between a tile's fill and the edge of its cell, so neighbouring tiles meet exactly: their
-     * borders abut instead of leaving a grey gap between hexes. Being world-space, borders no longer
-     * change thickness with the camera zoom either.
+     * rim between a tile's fill and the edge of its cell, so neighbouring tiles always meet the same
+     * way. Being world-space, borders no longer change thickness with the camera zoom either.
      */
-    private static final float BORDER_WIDTH = GameConfig.HEX_SPACING - TILE_RADIUS;
+    private static final float BORDER_WIDTH = GameConfig.HEX_SPACING - TILE_RADIUS - HEX_SEPARATOR;
     private static final Color BACKGROUND_COLOR = new Color(0.45f, 0.45f, 0.45f, 1f);
     private static final Color CATEGORY_ISLAND = new Color(0.45f, 0.52f, 0.30f, 1f);
     private static final Color CATEGORY_SHALLOW = new Color(0.32f, 0.70f, 0.74f, 1f);
