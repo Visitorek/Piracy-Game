@@ -110,6 +110,7 @@ Porty, handel i ekonomia są odłożone na późniejsze, opcjonalne rozszerzenie
 * [ ] Profilowanie zużycia pamięci RAM oraz płynności (stałe 60 FPS na urządzeniach mobilnych).
 * [ ] Dostosowanie interfejsu (skalowanie czcionek i przycisków) pod ekrany smartfonów oraz tabletów.
 * [x] Panel "Opcje" w menu głównym (`GameSettings` + `AndroidSettings`): przełączniki dźwięku i muzyki (gotowe pod przyszłą ścieżkę audio), trójstanowy poziom trudności (steruje głębokością przeszukiwania AI i liczbą piratów przeciwnika w lukach) oraz tryb debug (współrzędne kafelków na mapie i tymczasowy przycisk skrótu do bitwy). Ustawienia zapisywane w `SharedPreferences`.
+* [x] Losowość ruchów przeciwnika zależna od poziomu trudności: `Difficulty` niesie `randomMoveChance`, którą `BattleAI` losuje przed każdym ruchem kapitana - im łatwiejszy poziom, tym więcej pomyłek (Łatwy 40%, Normalny 20%, Trudny 5%).
 * [ ] Testy jednostkowe kluczowych mechanik (HexMath, Pathfinding, Battle resolution).
 
 ### 5.3 Przygotowanie do Publikacji

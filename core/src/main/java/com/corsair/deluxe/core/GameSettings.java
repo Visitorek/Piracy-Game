@@ -9,16 +9,18 @@ public final class GameSettings {
 
     /** How hard the pirates of the sea (and the boarding battles) are to beat. */
     public enum Difficulty {
-        EASY(2, 1),
-        NORMAL(3, 1),
-        HARD(4, 2);
+        EASY(2, 1, 0.40f),
+        NORMAL(3, 1, 0.20f),
+        HARD(4, 2, 0.05f);
 
         private final int aiDepth;
         private final int enemyPiratesPerHatch;
+        private final float randomMoveChance;
 
-        Difficulty(int aiDepth, int enemyPiratesPerHatch) {
+        Difficulty(int aiDepth, int enemyPiratesPerHatch, float randomMoveChance) {
             this.aiDepth = aiDepth;
             this.enemyPiratesPerHatch = enemyPiratesPerHatch;
+            this.randomMoveChance = randomMoveChance;
         }
 
         /** How many turns ahead the enemy captain plans. */
@@ -29,6 +31,11 @@ public final class GameSettings {
         /** Pirates the enemy starts with inside every hatch. */
         public int getEnemyPiratesPerHatch() {
             return enemyPiratesPerHatch;
+        }
+
+        /** Chance (0..1) that the enemy captain ignores the plan and plays any legal move. */
+        public float getRandomMoveChance() {
+            return randomMoveChance;
         }
 
         /** Next state of the three-state toggle, wrapping around to the first one. */
@@ -121,6 +128,11 @@ public final class GameSettings {
     /** Pirates the enemy starts with inside every hatch. */
     public static int enemyPiratesPerHatch() {
         return difficulty.getEnemyPiratesPerHatch();
+    }
+
+    /** Chance (0..1) that the enemy captain plays a random move instead of the best one. */
+    public static float aiRandomMoveChance() {
+        return difficulty.getRandomMoveChance();
     }
 
     public static void setListener(Listener newListener) {

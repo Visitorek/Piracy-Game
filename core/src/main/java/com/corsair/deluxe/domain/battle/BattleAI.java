@@ -10,16 +10,28 @@ public class BattleAI {
 
     private final Random random;
     private final int depth;
+    private final float randomMoveChance;
 
-    public BattleAI(Random random, int depth) {
+    /**
+     * @param depth            how many turns ahead the captain plans
+     * @param randomMoveChance chance (0..1) that the captain ignores the plan and plays any legal
+     *                         move - the higher it is, the more "mistakes" fill the battle
+     */
+    public BattleAI(Random random, int depth, float randomMoveChance) {
         this.random = random;
         this.depth = depth;
+        this.randomMoveChance = Math.max(0f, Math.min(1f, randomMoveChance));
     }
 
     public BattleAction chooseAction(BattleState state) {
         BattleSide side = state.getSideToMove();
         List<BattleAction> actions = state.legalActions(side);
         Collections.shuffle(actions, random);
+
+        if (side == BattleSide.ENEMY && random.nextFloat() < randomMoveChance) {
+            // A weaker captain does not always follow the plan: the shuffled legal move wins
+            return actions.get(0);
+        }
 
         BattleAction best = null;
         int bestScore = Integer.MIN_VALUE;

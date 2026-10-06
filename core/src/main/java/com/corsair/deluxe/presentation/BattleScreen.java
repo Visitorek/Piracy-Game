@@ -60,7 +60,8 @@ public class BattleScreen extends ScreenAdapter {
     private final GlyphLayout layout = new GlyphLayout();
     private final OrthographicCamera camera = new OrthographicCamera();
     private final Random random = new Random();
-    private final BattleAI ai = new BattleAI(random, GameSettings.aiDepth());
+    private final BattleAI ai = new BattleAI(random, GameSettings.aiDepth(),
+            GameSettings.aiRandomMoveChance());
     private final BattleState state;
     private final int initialPlayerUnits;
     /** Hatches the player opened for the next muster; opening and closing them is free. */
