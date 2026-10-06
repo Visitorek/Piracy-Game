@@ -60,6 +60,37 @@ public class WorldScreen extends ScreenAdapter {
     private float lookElapsed;
     private final Set<HexCoordinate> discovered = new HashSet<HexCoordinate>();
 
+    private static final float TILE_RADIUS = 0.70f;
+    private static final float TILE_ALPHA_VISIBLE = 0.85f;
+    private static final float TILE_ALPHA_FOGGED = 0.30f;
+    private static final float TILE_FILL_ALPHA_VISIBLE = 0.80f;
+    private static final float TILE_FILL_ALPHA_FOGGED = 0.22f;
+    /** Terrain borders are drawn thicker than the plain hex grid so the transitions read clearly. */
+    private static final float TERRAIN_EDGE_SCALE = 2.0f;
+    private static final Color BACKGROUND_COLOR = new Color(0.45f, 0.45f, 0.45f, 1f);
+    private static final Color CATEGORY_ISLAND = new Color(0.45f, 0.52f, 0.30f, 1f);
+    private static final Color CATEGORY_SHALLOW = new Color(0.32f, 0.70f, 0.74f, 1f);
+    private static final Color CATEGORY_WATER = new Color(0.13f, 0.27f, 0.46f, 1f);
+    /** Land meets the shallows: a strip of yellow sand. */
+    private static final Color SAND_COLOR = new Color(0.94f, 0.85f, 0.46f, 1f);
+    /**
+     * Land drops straight into the deep: a rocky cliff. Land is always ringed by shallows, so this
+     * only shows up if generation ever lets the two touch.
+     */
+    private static final Color CLIFF_COLOR = new Color(0.38f, 0.31f, 0.25f, 1f);
+    /** Shallows meet the deep: a line of pale surf. */
+    private static final Color REEF_COLOR = new Color(0.66f, 0.84f, 0.88f, 1f);
+    /** Which of the six hex edges faces each neighbour, derived from the hex layout math. */
+    private static final int[] EDGE_INDEX = new int[HexDirection.values().length];
+
+    static {
+        for (HexDirection direction : HexDirection.values()) {
+            Vector2 offset = HexMath.hexToPixel(direction.toOffset(), 1f);
+            double angle = Math.toDegrees(Math.atan2(offset.y, offset.x));
+            EDGE_INDEX[direction.ordinal()] = (int) (((Math.round(angle / 60.0) % 6) + 6) % 6);
+        }
+    }
+
     public WorldScreen(CorsairGame game) {
         this.game = game;
         this.camera = new OrthographicCamera();
@@ -100,12 +131,13 @@ public class WorldScreen extends ScreenAdapter {
         updateLookAround(delta);
         cameraManager.update();
 
-        ScreenUtils.clear(0.05f, 0.19f, 0.33f, 1f);
+        ScreenUtils.clear(BACKGROUND_COLOR);
 
         shapeRenderer.setProjectionMatrix(camera.combined);
         lineThickness = GameConfig.HEX_LINE_WIDTH_PX * camera.viewportHeight * camera.zoom / Gdx.graphics.getHeight();
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
+        boolean debug = GameSettings.isDebugMode();
         for (HexTile tile : map.getTiles()) {
             if (!discovered.contains(tile.getCoordinate())) {
                 continue;
@@ -116,13 +148,12 @@ public class WorldScreen extends ScreenAdapter {
 
             if (selectedTile != null && selectedTile.equals(tile.getCoordinate())) {
                 shapeRenderer.setColor(1f, 0.98f, 0.7f, 0.8f);
+                drawHexOutline(centerX, centerY, TILE_RADIUS);
+            } else if (debug) {
+                drawDebugTile(tile, centerX, centerY);
             } else {
-                Color color = colorFor(tile.getTerrain());
-                float alpha = isVisible(tile.getCoordinate()) ? 0.6f : 0.25f;
-                shapeRenderer.setColor(color.r, color.g, color.b, alpha);
+                drawPaintedTile(tile, centerX, centerY);
             }
-
-            drawHexOutline(centerX, centerY, 0.70f);
         }
 
         shapeRenderer.end();
@@ -154,12 +185,12 @@ public class WorldScreen extends ScreenAdapter {
         shapeRenderer.end();
 
         // Draw coordinates in screen-space (fixed pixel size, unaffected by zoom)
-        if (GameSettings.isDebugMode()) {
+        if (debug) {
             drawTileCoordinates();
         }
 
         drawLookAroundButton();
-        if (GameSettings.isDebugMode()) {
+        if (debug) {
             drawDebugBattleButton();
         }
         drawMenuButton();
@@ -367,6 +398,82 @@ public class WorldScreen extends ScreenAdapter {
         }
     }
 
+    /** Fills a hex with a triangle fan, in the colour the caller has already set. */
+    private void drawHexFill(float centerX, float centerY, float radius) {
+        float[] vertices = buildHexVertices(centerX, centerY, radius);
+        for (int i = 0; i < 6; i++) {
+            int next = (i + 1) % 6;
+            shapeRenderer.triangle(centerX, centerY,
+                    vertices[i * 2], vertices[i * 2 + 1],
+                    vertices[next * 2], vertices[next * 2 + 1]);
+        }
+    }
+
+    /** Paints a single edge of a hex, in the colour the caller has already set. */
+    private void drawHexEdge(float centerX, float centerY, float radius, int edgeIndex) {
+        float[] vertices = buildHexVertices(centerX, centerY, radius);
+        int from = edgeIndex * 2;
+        int to = ((edgeIndex + 1) % 6) * 2;
+        shapeRenderer.rectLine(vertices[from], vertices[from + 1],
+                vertices[to], vertices[to + 1], lineThickness * TERRAIN_EDGE_SCALE);
+    }
+
+    /** Debug view: flat terrain colours, exactly as the map has always been drawn. */
+    private void drawDebugTile(HexTile tile, float centerX, float centerY) {
+        Color color = debugColorFor(tile.getTerrain());
+        float alpha = isVisible(tile.getCoordinate()) ? 0.6f : 0.25f;
+        shapeRenderer.setColor(color.r, color.g, color.b, alpha);
+        drawHexOutline(centerX, centerY, TILE_RADIUS);
+    }
+
+    /**
+     * Normal view: the hex is filled with its terrain category colour and every edge is painted by
+     * what lies on its other side - the tile's own category colour when the neighbour shares its
+     * terrain, otherwise the colour of the transition between the two (sand, cliff, reef). Both
+     * tiles paint a shared edge, so borders always match.
+     */
+    private void drawPaintedTile(HexTile tile, float centerX, float centerY) {
+        boolean visible = isVisible(tile.getCoordinate());
+        Color fill = categoryColorFor(tile.getTerrain());
+        shapeRenderer.setColor(fill.r, fill.g, fill.b,
+                visible ? TILE_FILL_ALPHA_VISIBLE : TILE_FILL_ALPHA_FOGGED);
+        drawHexFill(centerX, centerY, TILE_RADIUS);
+
+        float edgeAlpha = visible ? TILE_ALPHA_VISIBLE : TILE_ALPHA_FOGGED;
+        for (HexDirection direction : HexDirection.values()) {
+            HexCoordinate neighborCoordinate = tile.getCoordinate().neighbor(direction);
+            HexTile neighbor = map.getTile(neighborCoordinate);
+            HexTile.Terrain neighborTerrain = neighbor == null || !discovered.contains(neighborCoordinate)
+                    ? tile.getTerrain()
+                    : neighbor.getTerrain();
+            Color color = neighborTerrain == tile.getTerrain()
+                    ? categoryColorFor(tile.getTerrain())
+                    : transitionColorFor(tile.getTerrain(), neighborTerrain);
+            shapeRenderer.setColor(color.r, color.g, color.b, edgeAlpha);
+            drawHexEdge(centerX, centerY, TILE_RADIUS, EDGE_INDEX[direction.ordinal()]);
+        }
+    }
+
+    /** Colour of the border between two different terrains. */
+    private Color transitionColorFor(HexTile.Terrain terrain, HexTile.Terrain neighbor) {
+        if (terrain == HexTile.Terrain.ISLAND || neighbor == HexTile.Terrain.ISLAND) {
+            boolean deepWater = terrain == HexTile.Terrain.WATER || neighbor == HexTile.Terrain.WATER;
+            return deepWater ? CLIFF_COLOR : SAND_COLOR;
+        }
+        return REEF_COLOR;
+    }
+
+    private Color categoryColorFor(HexTile.Terrain terrain) {
+        switch (terrain) {
+            case ISLAND:
+                return CATEGORY_ISLAND;
+            case SHALLOW:
+                return CATEGORY_SHALLOW;
+            default:
+                return CATEGORY_WATER;
+        }
+    }
+
     private float[] buildHexVertices(float centerX, float centerY, float radius) {
         float[] vertices = new float[12];
         for (int i = 0; i < 6; i++) {
@@ -378,7 +485,7 @@ public class WorldScreen extends ScreenAdapter {
         return vertices;
     }
 
-    private Color colorFor(HexTile.Terrain terrain) {
+    private Color debugColorFor(HexTile.Terrain terrain) {
         switch (terrain) {
             case ISLAND:
                 return new Color(0.12f, 0.5f, 0.23f, 1f);
