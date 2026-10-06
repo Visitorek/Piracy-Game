@@ -117,6 +117,7 @@ Porty, handel i ekonomia są odłożone na późniejsze, opcjonalne rozszerzenie
 * [ ] Testy jednostkowe kluczowych mechanik (HexMath, Pathfinding, Battle resolution).
 * [x] Komunikat HUD "Mielizna!" ("Statek nie wplynie na lad") na górze ekranu przez ~2 s, gdy odmówiony ruch trafi w ląd; obsługuje tapnięcie, strzałki i `moveTo` (wspólna funkcja `isBlockedMove`), komunikat sam wygasa z płynnym zanikaniem, a tekst jest bez znaków diakrytycznych (domyślny `BitmapFont` nie ma polskich glifów).
 * [x] Statek pływa tylko po wodzie: po wyłączeniu trybu debug heksy lądu są nieprzekraczalne dla `HexPathfinder` (zarówno jako cel, jak i jako skrót przez wyspę), a tapnięcie/strzałka w ląd są ignorowane. Statek stojący na lądzie (pozostałość po zabawie w trybie debug) może z niego odpłynąć, bo heks startowy nigdy nie jest blokowany. Z włączonym debugiem pływanie po lądzie działa jak dotąd.
+* [x] Naprawa przygaszania heksów poza zasięgiem wzroku podczas wyświetlania komunikatu: libGDX' `SpriteBatch.end()` wyłącza blending (`glDisable(GL_BLEND)`), a `begin()` go nie włącza z powrotem (blending zapala dopiero `flush()`, czyli faktyczne rysowanie), więc klatka kończąca się napisem zostawiała mapę bez przezroczystości. `WorldScreen` ma teraz pomocnicze `enableAlphaBlending()` wołane po każdym `spriteBatch.end()` i na starcie `render()` (zaraz po `ScreenUtils.clear`), dzięki czemu heksy zawsze rysują się z zadaną alfą.
 
 ### 5.3 Przygotowanie do Publikacji
 * [ ] Wygenerowanie podpisanej paczki wydaniowej (Android App Bundle - `.aab`).

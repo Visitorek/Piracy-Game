@@ -136,6 +136,16 @@ public class WorldScreen extends ScreenAdapter {
         Gdx.input.setInputProcessor(touchInputHandler);
     }
 
+    /**
+     * Re-arms alpha blending. libGDX' {@code SpriteBatch.end()} switches GL blending off, so any
+     * frame that ends with text drawing would otherwise paint the next frame's fogged tiles at full
+     * brightness - the map relies on alpha for everything that is out of sight.
+     */
+    private void enableAlphaBlending() {
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+    }
+
     @Override
     public void render(float delta) {
         handleInput(delta);
@@ -146,6 +156,7 @@ public class WorldScreen extends ScreenAdapter {
 
         ScreenUtils.clear(BACKGROUND_COLOR);
 
+        enableAlphaBlending();
         shapeRenderer.setProjectionMatrix(camera.combined);
         lineThickness = GameConfig.HEX_LINE_WIDTH_PX * camera.viewportHeight * camera.zoom / Gdx.graphics.getHeight();
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
@@ -262,8 +273,7 @@ public class WorldScreen extends ScreenAdapter {
         float panelLeft = centerX - panelWidth / 2f;
         float panelBottom = panelTop - panelHeight;
 
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        enableAlphaBlending();
         shapeRenderer.setProjectionMatrix(hudCamera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         shapeRenderer.setColor(HUD_MESSAGE_PANEL_COLOR.r, HUD_MESSAGE_PANEL_COLOR.g,
@@ -289,6 +299,9 @@ public class WorldScreen extends ScreenAdapter {
         font.getData().setScale(baseScale);
         font.setColor(Color.WHITE);
         spriteBatch.end();
+
+        // The batch just switched blending off - the map needs it again on the next frame.
+        enableAlphaBlending();
     }
 
     /** Debug helper: prints the axial coordinate of every discovered tile. */
@@ -313,6 +326,7 @@ public class WorldScreen extends ScreenAdapter {
             font.draw(spriteBatch, coords, screenPos.x - glyphLayout.width / 2f, screenPos.y + glyphLayout.height / 2f);
         }
         spriteBatch.end();
+        enableAlphaBlending();
     }
 
     // TEMPORARY: debug button that jumps straight into a battle
@@ -325,7 +339,7 @@ public class WorldScreen extends ScreenAdapter {
         float cy = debugButtonCenterY();
         float radius = buttonRadius() * 0.7f;
 
-        Gdx.gl.glEnable(GL20.GL_BLEND);
+        enableAlphaBlending();
         shapeRenderer.setProjectionMatrix(hudCamera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         shapeRenderer.setColor(0.65f, 0.1f, 0.1f, 0.92f);
@@ -341,6 +355,7 @@ public class WorldScreen extends ScreenAdapter {
         font.draw(spriteBatch, glyphLayout, cx - glyphLayout.width / 2f, cy + glyphLayout.height / 2f);
         font.getData().setScale(oldScale);
         spriteBatch.end();
+        enableAlphaBlending();
     }
 
     private float buttonRadius() {
@@ -363,8 +378,7 @@ public class WorldScreen extends ScreenAdapter {
         float radius = menuButtonRadius();
         float u = radius;
 
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        enableAlphaBlending();
         shapeRenderer.setProjectionMatrix(hudCamera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         shapeRenderer.setColor(0.36f, 0.09f, 0.09f, 0.92f);
@@ -396,8 +410,7 @@ public class WorldScreen extends ScreenAdapter {
         float radius = buttonRadius();
         float alpha = traveling ? 0.45f : 0.92f;
 
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        enableAlphaBlending();
         shapeRenderer.setProjectionMatrix(hudCamera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
