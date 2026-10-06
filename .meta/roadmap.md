@@ -63,7 +63,7 @@ Porty, handel i ekonomia są odłożone na późniejsze, opcjonalne rozszerzenie
 * [x] Dwie strony stoją na przeciwnych krawędziach siatce 6x5 (gracz po lewej, wróg po prawej; każdy statek ma 5 luków, po jednym na rząd); załoga czeka w rezerwie za lukami – gracz startuje z 2 piratami na luk (10), wróg z 1 (5).
 
 ### 3.1 Zasady (zaimplementowane w `domain.battle.BattleState`)
-* [x] Otwieranie luków jest darmowe i działa jak przełącznik (toggle) - można mieć otwartych kilka luków naraz, bez zużywania tury.
+* [x] Otwieranie luków jest darmowe i działa jak przełącznik (toggle) - można mieć otwartych kilka luków naraz, bez zużywania tury; po wyprowadzeniu załogi wszystkie otwarte luki zamykają się automatycznie (kolejna strzałka to znów skok).
 * [x] Tura = jedna z dwóch akcji: **wyprowadzenie załogi** (każdy otwarty luk wypuszcza po 1 piracie na pole wejściowe, maks. 5 naraz; nic, co już jest na sieci, się nie rusza) albo **skok** całej załogi na sieci o 1 pole: do przodu albo na ukos do przodu (w górę lub w dół).
 * [x] Pirat, który dojdzie do kolumny luków przeciwnika, zawsze atakuje luk na wprost (w swoim rzędzie) i jest przy tym zużyty - niezależnie od tego, czy zadano skok prosto, czy na ukos; pozostała załoga wykonuje zadany skok normalnie.
 * [x] Dziury w sieci generowane symetrycznie punktowo (uczciwy start); ich liczba rośnie z uszkodzeniem kadłuba gracza.
@@ -72,7 +72,7 @@ Porty, handel i ekonomia są odłożone na późniejsze, opcjonalne rozszerzenie
 
 ### 3.2 Ekran bitwy (`BattleScreen`)
 * [x] Kółka przy lukach pokazują piratów pozostałych w luku (po jego zewnętrznej stronie, od góry); brak kółka = pirat już wyszedł na siatkę; otwarty luk świeci na złoto i pokazuje pierścień na polu wejściowym.
-* [x] Dotykowy interfejs: tapnięcie własnego luku przełącza go (otwarty/zamknięty), trzy strzałki (do przodu / ukos w górę / ukos w dół) = wyprowadzenie załogi z otwartych luków, a gdy wszystkie są zamknięte - skok; przycisk ucieczki.
+* [x] Dotykowy interfejs: tapnięcie własnego luku przełącza go (otwarty/zamknięty), trzy strzałki (do przodu / ukos w górę / ukos w dół) = wyprowadzenie załogi z otwartych luków, a gdy wszystkie są zamknięte - skok; po wyprowadzeniu luki zamykają się same; przycisk ucieczki.
 * [x] Panel statusu: rezerwa, załoga na sieci, sprawne luki, numer tury, log ostatniej akcji.
 * [x] Powrót na mapę świata: straty załogi, łup za zwycięstwo (rum, żywność), usunięcie pokonanego przeciwnika, cofnięcie przy ucieczce/remisie; porażka wraca do menu głównego.
 

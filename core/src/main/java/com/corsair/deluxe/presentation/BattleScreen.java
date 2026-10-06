@@ -27,8 +27,9 @@ import java.util.Random;
 
 /**
  * Turn-based boarding skirmish in the spirit of Piracy Deluxe: tap the hatches in your column (left)
- * to open them, then press an arrow to muster the crew out of every open hatch - or, with all hatches
- * closed, to make the whole crew on the net jump. Aim: disable the enemy hatches (right column).
+ * to open them, then press an arrow to muster one pirate out of every open hatch - the hatches close
+ * again by themselves - or, with all hatches closed, to make the whole crew on the net jump.
+ * Aim: disable the enemy hatches (right column).
  */
 public class BattleScreen extends ScreenAdapter {
     private static final float ENEMY_THINK_SECONDS = 0.8f;
@@ -179,8 +180,8 @@ public class BattleScreen extends ScreenAdapter {
     }
 
     /**
-     * With at least one hatch open the arrow musters the crew out of every open hatch; with all
-     * hatches closed it is an ordinary jump of the crew already on the net.
+     * With at least one hatch open the arrow musters the crew out of every open hatch (the hatches then
+     * slam shut again); with all hatches closed it is an ordinary jump of the crew already on the net.
      */
     private void playerArrow(JumpDirection direction) {
         if (hasOpenHatches()) {
@@ -219,13 +220,10 @@ public class BattleScreen extends ScreenAdapter {
         return count;
     }
 
-    /** Hatches that ran out of crew or were destroyed close themselves. */
-    private void closeSpentHatches() {
+    /** Mustering the crew slams every hatch shut again, so the next arrow is a jump. */
+    private void closeHatches() {
         for (int i = 0; i < openHatches.length; i++) {
-            if (state.isHatchDisabled(BattleSide.PLAYER, i)
-                    || state.getHatchCrew(BattleSide.PLAYER, i) <= 0) {
-                openHatches[i] = false;
-            }
+            openHatches[i] = false;
         }
     }
 
@@ -237,9 +235,11 @@ public class BattleScreen extends ScreenAdapter {
             return;
         }
         ActionResult result = state.apply(action);
-        message = "Ty: " + describe(action, result);
         if (action.isDeploy()) {
-            closeSpentHatches();
+            closeHatches();
+            message = "Ty: " + describe(action, result) + " (luki zamkniete)";
+        } else {
+            message = "Ty: " + describe(action, result);
         }
         afterAction();
     }
