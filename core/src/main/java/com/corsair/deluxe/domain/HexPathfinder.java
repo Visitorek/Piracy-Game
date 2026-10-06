@@ -12,6 +12,14 @@ public final class HexPathfinder {
     }
 
     public static List<HexCoordinate> findPath(HexMap map, HexCoordinate start, HexCoordinate goal) {
+        return findPath(map, start, goal, true);
+    }
+
+    /**
+     * @param allowLand when false, land hexes are impassable, so a ship can only sail. The starting
+     *                  hex is always usable, which lets a ship that already sits on land sail off.
+     */
+    public static List<HexCoordinate> findPath(HexMap map, HexCoordinate start, HexCoordinate goal, boolean allowLand) {
         if (start == null || goal == null || !map.isInside(start) || !map.isInside(goal)) {
             return new ArrayList<HexCoordinate>();
         }
@@ -41,7 +49,7 @@ public final class HexPathfinder {
                 }
 
                 HexTile tile = map.getTile(neighbor);
-                if (tile == null) {
+                if (tile == null || (!allowLand && tile.getTerrain() == HexTile.Terrain.ISLAND)) {
                     continue;
                 }
 

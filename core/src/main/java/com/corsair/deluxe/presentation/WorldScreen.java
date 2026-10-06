@@ -577,11 +577,11 @@ public class WorldScreen extends ScreenAdapter {
 
     private void selectNeighbor(HexDirection direction) {
         HexCoordinate target = playerShip.getPosition().neighbor(direction);
-        if (isBusy() || !discovered.contains(target)) {
+        if (isBusy() || !discovered.contains(target) || !canSailTo(target)) {
             return;
         }
         selectedTile = target;
-        route = HexPathfinder.findPath(map, playerShip.getPosition(), selectedTile);
+        route = HexPathfinder.findPath(map, playerShip.getPosition(), selectedTile, GameSettings.isDebugMode());
     }
 
     @Override
@@ -646,16 +646,29 @@ public class WorldScreen extends ScreenAdapter {
         }
     }
 
+    /**
+     * Ships sail, they do not walk: land is out of bounds unless debug mode is on, which lets the
+     * player beach the ship anywhere for testing.
+     */
+    private boolean canSailTo(HexCoordinate coordinate) {
+        if (GameSettings.isDebugMode()) {
+            return true;
+        }
+        HexTile tile = map.getTile(coordinate);
+        return tile != null && tile.getTerrain() != HexTile.Terrain.ISLAND;
+    }
+
     public void selectTile(HexCoordinate coordinate) {
-        if (isBusy() || !discovered.contains(coordinate)) {
+        if (isBusy() || !discovered.contains(coordinate) || !canSailTo(coordinate)) {
             return;
         }
         this.selectedTile = coordinate;
-        this.route = HexPathfinder.findPath(map, playerShip.getPosition(), selectedTile);
+        this.route = HexPathfinder.findPath(map, playerShip.getPosition(), selectedTile,
+                GameSettings.isDebugMode());
     }
 
     public void moveTo(HexCoordinate coordinate) {
-        if (isBusy() || !discovered.contains(coordinate)) {
+        if (isBusy() || !discovered.contains(coordinate) || !canSailTo(coordinate)) {
             return;
         }
         selectTile(coordinate);
