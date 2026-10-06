@@ -16,4 +16,5 @@
     <string name="difficulty_easy">Łatwy</string>
     <string name="difficulty_normal">Normalny</string>
     <string name="difficulty_hard">Trudny</string>
+    <string name="version_label">Wersja 1.0.0</string>
 </resources>

@@ -34,7 +34,8 @@ android {
     minSdkVersion 21
     targetSdkVersion 36
     versionCode 1
-    versionName "1.0"
+    // Keep in sync with @string/version_label shown in the bottom-right of the main menu.
+    versionName "1.0.0"
   }
   compileOptions {
     sourceCompatibility "8"
