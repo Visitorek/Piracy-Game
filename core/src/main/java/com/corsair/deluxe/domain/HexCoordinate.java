@@ -37,6 +37,12 @@ public class HexCoordinate {
         return result;
     }
 
+    public int distanceTo(HexCoordinate other) {
+        int dq = q - other.q;
+        int dr = r - other.r;
+        return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {

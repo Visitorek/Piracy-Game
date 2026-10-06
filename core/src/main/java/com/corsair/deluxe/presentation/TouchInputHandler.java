@@ -1,9 +1,11 @@
 package com.corsair.deluxe.presentation;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector3;
+import com.corsair.deluxe.core.GameConfig;
 import com.corsair.deluxe.domain.HexCoordinate;
 import com.corsair.deluxe.domain.HexDirection;
 import com.corsair.deluxe.domain.HexMath;
@@ -13,6 +15,9 @@ public class TouchInputHandler extends InputAdapter {
     private final OrthographicCamera camera;
     private float lastTouchX = -1;
     private float lastTouchY = -1;
+    private float startTouchX;
+    private float startTouchY;
+    private boolean dragging;
     private static final float TOUCH_THRESHOLD = 50f;
 
     public TouchInputHandler(WorldScreen worldScreen, OrthographicCamera camera) {
@@ -22,37 +27,47 @@ public class TouchInputHandler extends InputAdapter {
 
     @Override
     public boolean touchDown(int screenX, int screenY, int pointer, int button) {
+        startTouchX = screenX;
+        startTouchY = screenY;
         lastTouchX = screenX;
         lastTouchY = screenY;
+        dragging = false;
         return true;
     }
 
     @Override
     public boolean touchUp(int screenX, int screenY, int pointer, int button) {
-        if (lastTouchX >= 0 && lastTouchY >= 0) {
-            float deltaX = screenX - lastTouchX;
-            float deltaY = screenY - lastTouchY;
-            float distance = (float) Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-            if (distance < TOUCH_THRESHOLD) {
-                handleTap(screenX, screenY);
-            }
+        if (lastTouchX >= 0 && lastTouchY >= 0 && !dragging) {
+            handleTap(screenX, screenY);
         }
         lastTouchX = -1;
         lastTouchY = -1;
+        dragging = false;
         return true;
     }
 
     @Override
     public boolean touchDragged(int screenX, int screenY, int pointer) {
-        Vector3 screenCoords = new Vector3(screenX, screenY, 0);
-        Vector3 worldCoords = camera.unproject(screenCoords);
+        if (lastTouchX < 0) {
+            return true;
+        }
 
-        float panX = screenX - lastTouchX;
-        float panY = lastTouchY - screenY;
+        if (!dragging) {
+            float fromStartX = screenX - startTouchX;
+            float fromStartY = screenY - startTouchY;
+            if (Math.sqrt(fromStartX * fromStartX + fromStartY * fromStartY) < TOUCH_THRESHOLD) {
+                return true;
+            }
+            dragging = true;
+        }
 
-        CameraManager cameraManager = new CameraManager(camera);
-        cameraManager.pan(panX * 0.02f, panY * 0.02f);
+        // Convert finger movement in pixels to world units so the map follows the finger 1:1
+        float worldPerPixelX = camera.viewportWidth * camera.zoom / Gdx.graphics.getWidth();
+        float worldPerPixelY = camera.viewportHeight * camera.zoom / Gdx.graphics.getHeight();
+        float panX = (screenX - lastTouchX) * worldPerPixelX;
+        float panY = (lastTouchY - screenY) * worldPerPixelY;
+
+        new CameraManager(camera).pan(panX, panY);
 
         lastTouchX = screenX;
         lastTouchY = screenY;
@@ -103,13 +118,22 @@ public class TouchInputHandler extends InputAdapter {
     }
 
     private void handleTap(int screenX, int screenY) {
+        if (worldScreen.handleHudTap(screenX, screenY)) {
+            return;
+        }
+
+        if (worldScreen.isTraveling()) {
+            worldScreen.stopTravel();
+            return;
+        }
+
         Vector3 screenCoords = new Vector3(screenX, screenY, 0);
         Vector3 worldCoords = camera.unproject(screenCoords);
 
         float worldX = worldCoords.x - 6f;
         float worldY = worldCoords.y - 4.2f;
 
-        HexCoordinate tappedHex = HexMath.pixelToHex(worldX, worldY, 0.72f);
+        HexCoordinate tappedHex = HexMath.pixelToHex(worldX, worldY, GameConfig.HEX_SPACING);
         if (tappedHex != null) {
             HexCoordinate currentSelected = worldScreen.getSelectedTile();
             if (currentSelected != null && currentSelected.equals(tappedHex)

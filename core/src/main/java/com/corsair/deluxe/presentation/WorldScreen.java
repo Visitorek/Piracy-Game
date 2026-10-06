@@ -3,6 +3,7 @@ package com.corsair.deluxe.presentation;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
@@ -22,7 +23,9 @@ import com.corsair.deluxe.domain.HexTile;
 import com.corsair.deluxe.domain.Ship;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class WorldScreen extends ScreenAdapter {
     private final CorsairGame game;
@@ -38,6 +41,18 @@ public class WorldScreen extends ScreenAdapter {
     private HexCoordinate selectedTile;
     private List<HexCoordinate> route = new ArrayList<HexCoordinate>();
     private TouchInputHandler touchInputHandler;
+    private static final float SECONDS_PER_HEX = 1f;
+    private List<HexCoordinate> travelPath = new ArrayList<HexCoordinate>();
+    private int travelIndex;
+    private float travelProgress;
+    private boolean traveling;
+    private boolean stopRequested;
+    private float lineThickness;
+    private static final int LOOK_AROUND_TURNS = 3;
+    private static final int LOOK_AROUND_BONUS_RANGE = 1;
+    private boolean lookingAround;
+    private float lookElapsed;
+    private final Set<HexCoordinate> discovered = new HashSet<HexCoordinate>();
 
     public WorldScreen(CorsairGame game) {
         this.game = game;
@@ -57,6 +72,7 @@ public class WorldScreen extends ScreenAdapter {
         this.playerShip = new Ship("Sea Wren");
         this.playerShip.setPosition(new HexCoordinate(0, 0));
         this.selectedTile = playerShip.getPosition();
+        revealAroundShip();
         this.touchInputHandler = new TouchInputHandler(this, camera);
     }
 
@@ -68,15 +84,21 @@ public class WorldScreen extends ScreenAdapter {
     @Override
     public void render(float delta) {
         handleInput(delta);
+        updateTravel(delta);
+        updateLookAround(delta);
         cameraManager.update();
 
         ScreenUtils.clear(0.05f, 0.19f, 0.33f, 1f);
 
         shapeRenderer.setProjectionMatrix(camera.combined);
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+        lineThickness = GameConfig.HEX_LINE_WIDTH_PX * camera.viewportHeight * camera.zoom / Gdx.graphics.getHeight();
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
         for (HexTile tile : map.getTiles()) {
-            Vector2 pixel = HexMath.hexToPixel(tile.getCoordinate(), 0.72f);
+            if (!discovered.contains(tile.getCoordinate())) {
+                continue;
+            }
+            Vector2 pixel = HexMath.hexToPixel(tile.getCoordinate(), GameConfig.HEX_SPACING);
             float centerX = 6f + pixel.x;
             float centerY = 4.2f + pixel.y;
 
@@ -84,22 +106,30 @@ public class WorldScreen extends ScreenAdapter {
                 shapeRenderer.setColor(1f, 0.98f, 0.7f, 0.8f);
             } else {
                 Color color = colorFor(tile.getTerrain());
-                shapeRenderer.setColor(color.r, color.g, color.b, 0.6f);
+                float alpha = isVisible(tile.getCoordinate()) ? 0.6f : 0.25f;
+                shapeRenderer.setColor(color.r, color.g, color.b, alpha);
             }
 
             drawHexOutline(centerX, centerY, 0.70f);
         }
 
+        shapeRenderer.end();
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+
         if (!route.isEmpty()) {
             shapeRenderer.setColor(1f, 0.9f, 0.2f, 0.8f);
             for (int i = 0; i < route.size() - 1; i++) {
-                Vector2 from = HexMath.hexToPixel(route.get(i), 0.72f);
-                Vector2 to = HexMath.hexToPixel(route.get(i + 1), 0.72f);
+                Vector2 from = HexMath.hexToPixel(route.get(i), GameConfig.HEX_SPACING);
+                Vector2 to = HexMath.hexToPixel(route.get(i + 1), GameConfig.HEX_SPACING);
                 shapeRenderer.rectLine(6f + from.x, 4.2f + from.y, 6f + to.x, 4.2f + to.y, 0.1f);
             }
         }
 
-        Vector2 shipPixel = HexMath.hexToPixel(playerShip.getPosition(), 0.72f);
+        Vector2 shipPixel = HexMath.hexToPixel(playerShip.getPosition(), GameConfig.HEX_SPACING);
+        if (traveling) {
+            Vector2 nextPixel = HexMath.hexToPixel(travelPath.get(travelIndex + 1), GameConfig.HEX_SPACING);
+            shipPixel = new Vector2(shipPixel).lerp(nextPixel, travelProgress);
+        }
         shapeRenderer.setColor(1f, 0.82f, 0.38f, 1f);
         shapeRenderer.circle(6f + shipPixel.x, 4.2f + shipPixel.y, 0.3f);
 
@@ -110,7 +140,11 @@ public class WorldScreen extends ScreenAdapter {
         spriteBatch.begin();
         Vector3 screenPos = new Vector3();
         for (HexTile tile : map.getTiles()) {
-            Vector2 pixel = HexMath.hexToPixel(tile.getCoordinate(), 0.72f);
+            if (!discovered.contains(tile.getCoordinate())) {
+                continue;
+            }
+            font.setColor(1f, 1f, 1f, isVisible(tile.getCoordinate()) ? 1f : 0.35f);
+            Vector2 pixel = HexMath.hexToPixel(tile.getCoordinate(), GameConfig.HEX_SPACING);
             float worldX = 6f + pixel.x;
             float worldY = 4.2f + pixel.y;
 
@@ -122,14 +156,105 @@ public class WorldScreen extends ScreenAdapter {
             font.draw(spriteBatch, coords, screenPos.x - glyphLayout.width / 2f, screenPos.y + glyphLayout.height / 2f);
         }
         spriteBatch.end();
+
+        drawLookAroundButton();
+    }
+
+    private float buttonRadius() {
+        return 36f * Gdx.graphics.getDensity();
+    }
+
+    private float buttonCenterX() {
+        return Gdx.graphics.getWidth() - buttonRadius() - 24f * Gdx.graphics.getDensity();
+    }
+
+    private float buttonCenterY() {
+        return Gdx.graphics.getHeight() / 2f;
+    }
+
+    private void drawLookAroundButton() {
+        float cx = buttonCenterX();
+        float cy = buttonCenterY();
+        float radius = buttonRadius();
+        float alpha = traveling ? 0.45f : 0.92f;
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shapeRenderer.setProjectionMatrix(hudCamera.combined);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+
+        shapeRenderer.setColor(0.07f, 0.12f, 0.24f, alpha);
+        shapeRenderer.circle(cx, cy, radius, 48);
+
+        if (lookingAround) {
+            float progress = Math.min(1f, lookElapsed / (LOOK_AROUND_TURNS * SECONDS_PER_HEX));
+            shapeRenderer.setColor(0.97f, 0.85f, 0.55f, 1f);
+            shapeRenderer.arc(cx, cy, radius, 90f - 360f * progress, 360f * progress, 48);
+            shapeRenderer.setColor(0.07f, 0.12f, 0.24f, 1f);
+            shapeRenderer.circle(cx, cy, radius * 0.84f, 48);
+        }
+
+        // Pirate spyglass: tapered brown tube with brass bands, drawn along a tilted axis
+        float alphaTint = alpha;
+        shapeRenderer.translate(cx, cy, 0f);
+        shapeRenderer.rotate(0f, 0f, 1f, 35f);
+        float u = radius;
+
+        shapeRenderer.setColor(0.45f, 0.27f, 0.13f, alphaTint);
+        shapeRenderer.rect(-0.66f * u, -0.08f * u, 0.22f * u, 0.16f * u);
+        shapeRenderer.rect(-0.44f * u, -0.12f * u, 0.40f * u, 0.24f * u);
+        shapeRenderer.rect(-0.04f * u, -0.16f * u, 0.46f * u, 0.32f * u);
+        shapeRenderer.rect(0.40f * u, -0.21f * u, 0.24f * u, 0.42f * u);
+
+        shapeRenderer.setColor(0.88f, 0.68f, 0.26f, alphaTint);
+        shapeRenderer.rect(-0.46f * u, -0.13f * u, 0.05f * u, 0.26f * u);
+        shapeRenderer.rect(-0.06f * u, -0.17f * u, 0.05f * u, 0.34f * u);
+        shapeRenderer.rect(0.38f * u, -0.22f * u, 0.05f * u, 0.44f * u);
+        shapeRenderer.rect(0.62f * u, -0.23f * u, 0.05f * u, 0.46f * u);
+
+        shapeRenderer.setColor(0.7f, 0.9f, 1f, alphaTint);
+        shapeRenderer.rect(0.67f * u, -0.17f * u, 0.03f * u, 0.34f * u);
+
+        shapeRenderer.identity();
+
+        shapeRenderer.end();
+    }
+
+    /** Returns true when the tap hit the look-around button and should not reach the map. */
+    public boolean handleHudTap(float screenX, float screenY) {
+        float dx = screenX - buttonCenterX();
+        float dy = (Gdx.graphics.getHeight() - screenY) - buttonCenterY();
+        if (dx * dx + dy * dy > buttonRadius() * buttonRadius()) {
+            return false;
+        }
+        if (traveling) {
+            return false;
+        }
+        if (!lookingAround) {
+            lookingAround = true;
+            lookElapsed = 0f;
+        }
+        return true;
+    }
+
+    private void updateLookAround(float delta) {
+        if (!lookingAround) {
+            return;
+        }
+        lookElapsed += delta;
+        if (lookElapsed >= LOOK_AROUND_TURNS * SECONDS_PER_HEX) {
+            lookingAround = false;
+            lookElapsed = 0f;
+            revealAroundShip(playerShip.getVisionRadius() + LOOK_AROUND_BONUS_RANGE);
+        }
     }
 
     private void drawHexOutline(float centerX, float centerY, float radius) {
         float[] vertices = buildHexVertices(centerX, centerY, radius);
         for (int i = 0; i < 6; i++) {
             int next = (i + 1) % 6;
-            shapeRenderer.line(vertices[i * 2], vertices[i * 2 + 1],
-                    vertices[next * 2], vertices[next * 2 + 1]);
+            shapeRenderer.rectLine(vertices[i * 2], vertices[i * 2 + 1],
+                    vertices[next * 2], vertices[next * 2 + 1], lineThickness);
         }
     }
 
@@ -198,11 +323,7 @@ public class WorldScreen extends ScreenAdapter {
 
         if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.SPACE)) {
             if (selectedTile != null) {
-                route = HexPathfinder.findPath(map, playerShip.getPosition(), selectedTile);
-                if (route.size() > 1) {
-                    playerShip.setPosition(route.get(route.size() - 1));
-                    selectedTile = playerShip.getPosition();
-                }
+                moveTo(selectedTile);
             }
         }
 
@@ -212,7 +333,11 @@ public class WorldScreen extends ScreenAdapter {
     }
 
     private void selectNeighbor(HexDirection direction) {
-        selectedTile = playerShip.getPosition().neighbor(direction);
+        HexCoordinate target = playerShip.getPosition().neighbor(direction);
+        if (isBusy() || !discovered.contains(target)) {
+            return;
+        }
+        selectedTile = target;
         route = HexPathfinder.findPath(map, playerShip.getPosition(), selectedTile);
     }
 
@@ -232,16 +357,77 @@ public class WorldScreen extends ScreenAdapter {
         touchInputHandler.dispose();
     }
 
+    private boolean isBusy() {
+        return traveling || lookingAround;
+    }
+
+    private boolean isVisible(HexCoordinate coordinate) {
+        return playerShip.getPosition().distanceTo(coordinate) <= playerShip.getVisionRadius();
+    }
+
+    private void revealAroundShip() {
+        revealAroundShip(playerShip.getVisionRadius());
+    }
+
+    private void revealAroundShip(int range) {
+        for (HexTile tile : map.getTiles()) {
+            if (playerShip.getPosition().distanceTo(tile.getCoordinate()) <= range) {
+                discovered.add(tile.getCoordinate());
+            }
+        }
+    }
+
     public void selectTile(HexCoordinate coordinate) {
+        if (isBusy() || !discovered.contains(coordinate)) {
+            return;
+        }
         this.selectedTile = coordinate;
         this.route = HexPathfinder.findPath(map, playerShip.getPosition(), selectedTile);
     }
 
     public void moveTo(HexCoordinate coordinate) {
+        if (isBusy() || !discovered.contains(coordinate)) {
+            return;
+        }
         selectTile(coordinate);
         if (route.size() > 1) {
-            playerShip.setPosition(route.get(route.size() - 1));
-            selectedTile = playerShip.getPosition();
+            travelPath = new ArrayList<HexCoordinate>(route);
+            travelIndex = 0;
+            travelProgress = 0f;
+            stopRequested = false;
+            traveling = true;
+        }
+    }
+
+    public boolean isTraveling() {
+        return traveling;
+    }
+
+    /** Ship finishes the hex it is currently sailing to and then stops. */
+    public void stopTravel() {
+        if (traveling) {
+            stopRequested = true;
+        }
+    }
+
+    private void updateTravel(float delta) {
+        if (!traveling) {
+            return;
+        }
+        travelProgress += delta / SECONDS_PER_HEX;
+        while (traveling && travelProgress >= 1f) {
+            travelProgress -= 1f;
+            travelIndex++;
+            playerShip.setPosition(travelPath.get(travelIndex));
+            revealAroundShip();
+            if (stopRequested || travelIndex >= travelPath.size() - 1) {
+                traveling = false;
+                travelProgress = 0f;
+                selectedTile = playerShip.getPosition();
+                if (stopRequested) {
+                    route = new ArrayList<HexCoordinate>();
+                }
+            }
         }
     }
 

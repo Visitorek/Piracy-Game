@@ -9,6 +9,7 @@ public class Ship {
     private int movementPoints = 6;
     private int foodSupplies = 12;
     private int rum = 8;
+    private int visionRadius = 1;
 
     public Ship(String name) {
         this.name = name;
@@ -25,6 +26,14 @@ public class Ship {
 
     public void setPosition(HexCoordinate position) {
         this.position = position;
+    }
+
+    public int getVisionRadius() {
+        return visionRadius;
+    }
+
+    public void setVisionRadius(int visionRadius) {
+        this.visionRadius = visionRadius;
     }
 
     public int getHullIntegrity() {
