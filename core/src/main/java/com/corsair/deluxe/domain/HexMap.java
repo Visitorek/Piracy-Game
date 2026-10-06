@@ -15,10 +15,15 @@ public class HexMap {
     private static final int MIN_ISLANDS = 4;
     private static final int MAX_EXTRA_ISLANDS = 3;
     private static final int MAX_ISLAND_SIZE = 8;
+    /** Share of the coastline that drops straight into deep water (a cliff) instead of a beach. */
+    private static final int CLIFF_PERCENT = 30;
+    /** Coastal hexes this close to each other share one cliff/beach decision, so cliffs come in stretches. */
+    private static final int CLIFF_REGION_SIZE = 2;
 
     private final int radius;
     private final HexTile[][] tiles;
     private final Random random;
+    private final long seed;
 
     public HexMap(int radius) {
         this(radius, new Random().nextLong());
@@ -28,6 +33,7 @@ public class HexMap {
         this.radius = radius;
         this.tiles = new HexTile[radius * 2 + 1][radius * 2 + 1];
         this.random = new Random(seed);
+        this.seed = seed;
         generate();
     }
 
@@ -64,7 +70,7 @@ public class HexMap {
                 HexTile.Terrain terrain;
                 if (land.contains(coord)) {
                     terrain = HexTile.Terrain.ISLAND;
-                } else if (touchesLand(coord, land)) {
+                } else if (touchesLand(coord, land) && !isCliff(coord)) {
                     terrain = HexTile.Terrain.SHALLOW;
                 } else {
                     terrain = HexTile.Terrain.WATER;
@@ -135,6 +141,27 @@ public class HexMap {
 
     private boolean touchesLand(HexCoordinate coord, Set<HexCoordinate> land) {
         return countIn(coord, land) > 0;
+    }
+
+    /**
+     * True when this stretch of coast drops straight into the deep instead of shelving into
+     * shallows. The decision is hashed over coarse coordinate regions rather than drawn per hex,
+     * so neighbouring hexes agree and cliffs read as stretches of coast, not speckles.
+     */
+    private boolean isCliff(HexCoordinate coord) {
+        int regionQ = Math.floorDiv(coord.getQ(), CLIFF_REGION_SIZE);
+        int regionR = Math.floorDiv(coord.getR(), CLIFF_REGION_SIZE);
+        return Math.floorMod(regionHash(regionQ, regionR), 100) < CLIFF_PERCENT;
+    }
+
+    private int regionHash(int regionQ, int regionR) {
+        int value = (int) (seed ^ (seed >>> 32));
+        value = value * 31 + regionQ;
+        value = value * 31 + regionR;
+        value ^= value >>> 16;
+        value *= 0x7FEB352D;
+        value ^= value >>> 15;
+        return value;
     }
 
     /** Non-land hexes connected to the start hex. */
