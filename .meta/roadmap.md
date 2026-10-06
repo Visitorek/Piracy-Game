@@ -36,6 +36,7 @@ Ta separacja ma pozwolić na odrębny design zarówno eksploracji, jak i walki, 
 * [x] Obsługa kamery i sterowania w trybie desktopowym.
 * [x] Wskaźnik zaznaczenia pola (Highlight tile) i rysowanie ścieżki planowanego ruchu statku.
 * [x] System Mgły Wojny (Fog of War) – zasłanianie nieodkrytych kafelków i odkrywanie ich w zasięgu wzroku statku.
+* [x] HUD ekranu mapy: przycisk lupy (rozglądanie się) oraz przycisk wyjścia do menu głównego, działający tak samo jak systemowy przycisk wstecz.
 
 ### 2.3 Mechanika Pływania i Pętla Turowa
 * [x] Klasa statku gracza (punkty ruchu/punkty akcji, zdrowie kadłuba, załoga, zaopatrzenie).

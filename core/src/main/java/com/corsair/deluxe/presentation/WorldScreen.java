@@ -176,6 +176,7 @@ public class WorldScreen extends ScreenAdapter {
 
         drawLookAroundButton();
         drawDebugBattleButton();
+        drawMenuButton();
     }
 
     // TEMPORARY: debug button that jumps straight into a battle
@@ -208,6 +209,40 @@ public class WorldScreen extends ScreenAdapter {
 
     private float buttonRadius() {
         return 36f * Gdx.graphics.getDensity();
+    }
+
+    private float menuButtonRadius() {
+        return buttonRadius() * 0.9f;
+    }
+
+    private float menuButtonCenterY() {
+        return buttonCenterY() + buttonRadius() * 2.5f;
+    }
+
+    /** Leaves the world map and shows the native main menu (same as the system back button). */
+    private void drawMenuButton() {
+        float cx = buttonCenterX();
+        float cy = menuButtonCenterY();
+        float radius = menuButtonRadius();
+        float u = radius;
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shapeRenderer.setProjectionMatrix(hudCamera.combined);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(0.36f, 0.09f, 0.09f, 0.92f);
+        shapeRenderer.circle(cx, cy, radius, 48);
+
+        // A door left through the doorway: return to the main menu
+        shapeRenderer.setColor(0.97f, 0.85f, 0.55f, 1f);
+        shapeRenderer.rect(cx + 0.30f * u, cy - 0.44f * u, 0.14f * u, 0.88f * u);
+        shapeRenderer.rect(cx + 0.08f * u, cy + 0.40f * u, 0.36f * u, 0.14f * u);
+        shapeRenderer.rect(cx + 0.08f * u, cy - 0.54f * u, 0.36f * u, 0.14f * u);
+        shapeRenderer.rect(cx - 0.58f * u, cy - 0.07f * u, 0.56f * u, 0.14f * u);
+        shapeRenderer.triangle(cx - 0.72f * u, cy,
+                cx - 0.26f * u, cy + 0.26f * u,
+                cx - 0.26f * u, cy - 0.26f * u);
+        shapeRenderer.end();
     }
 
     private float buttonCenterX() {
@@ -266,8 +301,16 @@ public class WorldScreen extends ScreenAdapter {
         shapeRenderer.end();
     }
 
-    /** Returns true when the tap hit the look-around button and should not reach the map. */
+    /** Returns true when the tap hit a HUD button and should not reach the map. */
     public boolean handleHudTap(float screenX, float screenY) {
+        float menuDx = screenX - buttonCenterX();
+        float menuDy = (Gdx.graphics.getHeight() - screenY) - menuButtonCenterY();
+        float menuRadius = menuButtonRadius();
+        if (menuDx * menuDx + menuDy * menuDy <= menuRadius * menuRadius) {
+            game.openMainMenu();
+            return true;
+        }
+
         float debugDx = screenX - buttonCenterX();
         float debugDy = (Gdx.graphics.getHeight() - screenY) - debugButtonCenterY();
         float debugRadius = buttonRadius() * 0.7f;
