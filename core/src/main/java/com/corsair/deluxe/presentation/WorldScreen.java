@@ -97,12 +97,12 @@ public class WorldScreen extends ScreenAdapter {
     private static final Color REEF_COLOR = new Color(0.66f, 0.84f, 0.88f, 1f);
     /** Our ship's hex keeps its normal terrain colours and is ringed in red to stand out. */
     private static final Color SHIP_FRAME_COLOR = new Color(0.82f, 0.13f, 0.13f, 0.95f);
-    /**
-     * Outer radius of that ring. Its edge reaches exactly the edge of every neighbouring hex, so the
-     * ring fills the gap between the tiles: a neighbour's border sits at {@code 2 * HEX_SPACING -
-     * TILE_RADIUS} circumradii from our centre.
-     */
-    private static final float SHIP_FRAME_RADIUS = 2f * GameConfig.HEX_SPACING - TILE_RADIUS;
+    /** Width of the ring: narrow enough to sit on the seam instead of covering our neighbours. */
+    private static final float SHIP_FRAME_WIDTH = 0.12f;
+    /** How far the ring may eat into our own tile, however thick the borders get when zoomed out. */
+    private static final float SHIP_FRAME_MAX_INSET = 0.06f;
+    /** Apothem of a regular hexagon divided by its circumradius, i.e. cos(30 degrees). */
+    private static final float HEX_APOTHEM_RATIO = 0.866f;
     /**
      * Palette for the ship model, lifted from the launcher icon and the splash screen: navy hull,
      * pale planking, off-white canvas with the icon's navy bands, and a gold pennant that echoes the
@@ -252,11 +252,15 @@ public class WorldScreen extends ScreenAdapter {
             }
         }
 
-        // The ship's hex is painted like every other tile; this ring is what sets it apart. Drawn
-        // after the whole map so that no neighbouring border can bleed over it.
+        // The ship's hex is painted like every other tile; this ring is what sets it apart. It hugs
+        // the coloured seam running between our tile and its neighbours: the ring's inner edge lines
+        // up with the inner edge of that seam and stays well clear of the neighbouring hexes.
         Vector2 shipTilePixel = HexMath.hexToPixel(playerShip.getPosition(), GameConfig.HEX_SPACING);
+        float seamHalfWidth = TRANSITION_EDGE_SCALE * lineThickness * 0.5f;
+        float ringInnerRadius = TILE_RADIUS - Math.min(SHIP_FRAME_MAX_INSET, seamHalfWidth / HEX_APOTHEM_RATIO);
         shapeRenderer.setColor(SHIP_FRAME_COLOR);
-        drawHexRing(6f + shipTilePixel.x, 4.2f + shipTilePixel.y, TILE_RADIUS, SHIP_FRAME_RADIUS);
+        drawHexRing(6f + shipTilePixel.x, 4.2f + shipTilePixel.y, ringInnerRadius,
+                ringInnerRadius + SHIP_FRAME_WIDTH);
 
         // Both ships sit on top of that ring, well inside its inner edge.
         Vector2 shipPixel = new Vector2(shipTilePixel);
@@ -626,19 +630,40 @@ public class WorldScreen extends ScreenAdapter {
         }
     }
 
-    /** Paints a single edge of a hex, in the colour the caller has already set. */
+    /**
+     * Paints a single edge of a hex as a trapezoid, in the colour the caller has already set. Both
+     * ends are stretched by half the band width, so the bands of two edges meeting at a corner
+     * overlap there instead of leaving a notch - a plain rectangle stops short of the corner.
+     */
     private void drawHexEdge(float centerX, float centerY, float radius, int edgeIndex, float thicknessScale) {
         float[] vertices = buildHexVertices(centerX, centerY, radius);
         int from = edgeIndex * 2;
         int to = ((edgeIndex + 1) % 6) * 2;
-        shapeRenderer.rectLine(vertices[from], vertices[from + 1],
-                vertices[to], vertices[to + 1], lineThickness * thicknessScale);
+        float fromX = vertices[from];
+        float fromY = vertices[from + 1];
+        float toX = vertices[to];
+        float toY = vertices[to + 1];
+
+        float length = (float) Math.sqrt((toX - fromX) * (toX - fromX) + (toY - fromY) * (toY - fromY));
+        float ux = (toX - fromX) / length;
+        float uy = (toY - fromY) / length;
+        float halfWidth = lineThickness * thicknessScale * 0.5f;
+        float nx = -uy * halfWidth;
+        float ny = ux * halfWidth;
+
+        float startX = fromX - ux * halfWidth;
+        float startY = fromY - uy * halfWidth;
+        float endX = toX + ux * halfWidth;
+        float endY = toY + uy * halfWidth;
+
+        shapeRenderer.triangle(startX + nx, startY + ny, endX + nx, endY + ny, startX - nx, startY - ny);
+        shapeRenderer.triangle(endX + nx, endY + ny, endX - nx, endY - ny, startX - nx, startY - ny);
     }
 
     /**
-     * Draws the ship model seen from above: dark hull, pale deck, navy quarterdeck, canvas spread on
-     * the yards, masts, a bowsprit with its jib and a pennant streaming off the stern. The whole
-     * model fits inside the hex outline, so the red ring around our own tile stays visible.
+     * Draws the ship model seen from above: dark hull, planked deck, canvas spread on the yards, the
+     * masts with a bowsprit and jib, and a pennant streaming off the stern. The whole model fits
+     * inside the hex outline, so the red ring around our own tile stays visible.
      */
     private void drawShip(float centerX, float centerY, float headingDeg, ShipStyle style) {
         shapeRenderer.translate(centerX, centerY, 0f);
@@ -648,7 +673,8 @@ public class WorldScreen extends ScreenAdapter {
         fillPolygon(SHIP_HULL);
         shapeRenderer.setColor(style.deck);
         fillPolygon(SHIP_DECK);
-        shapeRenderer.setColor(style.trim);
+        // The quarterdeck is planked with the same wood as the rest of the deck - no navy patch at
+        // the stern - and it also covers the bit of hull the deck outline leaves bare there.
         fillPolygon(SHIP_CASTLE);
 
         shapeRenderer.setColor(style.canvas);
