@@ -82,6 +82,11 @@ public class WorldScreen extends ScreenAdapter {
      * Giving transitions a band of their own made the pale ones twice as fat as the dark ones.
      */
     private static final float EDGE_SCALE = 3.0f;
+    /**
+     * Widest a border band may grow: the gap between two hexes. Bands are world-space and the map
+     * can zoom out, so without a cap a band would reach across the gap and cover a neighbour.
+     */
+    private static final float MAX_EDGE_BAND = 0.173f;
     private static final Color BACKGROUND_COLOR = new Color(0.45f, 0.45f, 0.45f, 1f);
     private static final Color CATEGORY_ISLAND = new Color(0.45f, 0.52f, 0.30f, 1f);
     private static final Color CATEGORY_SHALLOW = new Color(0.32f, 0.70f, 0.74f, 1f);
@@ -254,9 +259,9 @@ public class WorldScreen extends ScreenAdapter {
             }
         }
 
-        // The ship's hex is painted like every other tile; this ring is what sets it apart. It hugs
-        // the coloured seam running between our tile and its neighbours: the ring's inner edge lines
-        // up with the inner edge of that seam and stays well clear of the neighbouring hexes.
+        // The ship's hex is painted like every other tile; this ring is what sets it apart. Its inner
+        // edge follows the seam between our tile and its neighbours, so the ring reads as the outline
+        // of that tile instead of a separate marker.
         Vector2 shipTilePixel = HexMath.hexToPixel(playerShip.getPosition(), GameConfig.HEX_SPACING);
         float seamHalfWidth = EDGE_SCALE * lineThickness * 0.5f;
         float ringInnerRadius = TILE_RADIUS - Math.min(SHIP_FRAME_MAX_INSET, seamHalfWidth / HEX_APOTHEM_RATIO);
@@ -633,9 +638,10 @@ public class WorldScreen extends ScreenAdapter {
     }
 
     /**
-     * Paints a single edge of a hex as a trapezoid, in the colour the caller has already set. Both
-     * ends are stretched by half the band width, so the bands of two edges meeting at a corner
-     * overlap there instead of leaving a notch - a plain rectangle stops short of the corner.
+     * Paints a single edge of a hex as a band lying entirely outside the hexagon - it starts on the
+     * outline and grows outwards, so it never eats into the tile's own fill. Both ends are stretched
+     * by half the band width, so the bands of two edges meeting at a corner overlap there instead of
+     * leaving a notch.
      */
     private void drawHexEdge(float centerX, float centerY, float radius, int edgeIndex, float thicknessScale) {
         float[] vertices = buildHexVertices(centerX, centerY, radius);
@@ -649,17 +655,20 @@ public class WorldScreen extends ScreenAdapter {
         float length = (float) Math.sqrt((toX - fromX) * (toX - fromX) + (toY - fromY) * (toY - fromY));
         float ux = (toX - fromX) / length;
         float uy = (toY - fromY) / length;
-        float halfWidth = lineThickness * thicknessScale * 0.5f;
-        float nx = -uy * halfWidth;
-        float ny = ux * halfWidth;
+        float bandWidth = Math.min(lineThickness * thicknessScale, MAX_EDGE_BAND);
+        float halfWidth = bandWidth * 0.5f;
+        // The vertices run counter-clockwise, so the outward normal of an edge is its direction
+        // turned clockwise by 90 degrees.
+        float nx = uy * bandWidth;
+        float ny = -ux * bandWidth;
 
         float startX = fromX - ux * halfWidth;
         float startY = fromY - uy * halfWidth;
         float endX = toX + ux * halfWidth;
         float endY = toY + uy * halfWidth;
 
-        shapeRenderer.triangle(startX + nx, startY + ny, endX + nx, endY + ny, startX - nx, startY - ny);
-        shapeRenderer.triangle(endX + nx, endY + ny, endX - nx, endY - ny, startX - nx, startY - ny);
+        shapeRenderer.triangle(startX, startY, endX, endY, endX + nx, endY + ny);
+        shapeRenderer.triangle(endX + nx, endY + ny, startX + nx, startY + ny, startX, startY);
     }
 
     /**
