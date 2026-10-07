@@ -48,6 +48,44 @@ public class BattleScreen extends ScreenAdapter {
     private static final Color PLAYER_COLOR = new Color(0.25f, 0.55f, 1f, 1f);
     private static final Color ENEMY_COLOR = new Color(0.9f, 0.2f, 0.2f, 1f);
 
+    // Sky: hazy and pale along the horizon, deep blue overhead (t = 0 at the horizon, 1 at the top)
+    private static final float[] SKY_POS = { 0f, 0.07f, 0.20f, 0.42f, 0.70f, 1f };
+    private static final float[][] SKY_RGB = {
+            { 206, 227, 245 }, { 176, 208, 239 }, { 138, 182, 229 },
+            { 100, 152, 216 }, { 66, 115, 194 }, { 38, 76, 152 } };
+    // Sea: a bright band at the horizon, deepening toward the viewer
+    private static final float[] SEA_POS = { 0f, 0.11f, 0.24f, 0.40f, 0.58f, 0.79f, 1f };
+    private static final float[][] SEA_RGB = {
+            { 138, 173, 206 }, { 108, 144, 188 }, { 84, 122, 170 }, { 60, 92, 144 },
+            { 44, 68, 116 }, { 32, 50, 92 }, { 22, 35, 68 } };
+
+    private static final Color BACKDROP = color(20, 13, 18);
+    private static final Color HAZE_COLOR = color(238, 245, 253);
+    private static final Color HORIZON_RIM = color(176, 205, 231);
+    private static final Color CREST_COLOR = color(152, 190, 224);
+    private static final Color TROUGH_COLOR = color(14, 24, 52);
+    private static final Color CLOUD_LIT = color(252, 253, 255);
+    private static final Color CLOUD_BASE = color(178, 196, 224);
+    private static final Color SUN_COLOR = color(255, 244, 205);
+    private static final Color SUN_DISC_COLOR = color(255, 252, 236);
+    private static final Color SUN_CORE_COLOR = color(255, 253, 240);
+    private static final Color FOAM_COLOR = color(214, 232, 245);
+
+    /** Where the sun sits across the scene, as a fraction of the width. */
+    private static final float SUN_X = 0.30f;
+    /** How far the masts reach above the top deck, and how far the water reaches in front of the hulls. */
+    private static final float MAST_BAND = 2f;
+    private static final float SEA_DEPTH = 1.30f;
+    /** Half a hull of room beside the board on each side, and how high the horizon cuts across it. */
+    private static final float SHIP_ROOM = 1.10f;
+    private static final float HORIZON_CELLS = 2.55f;
+    /** The sea and the sky look the same on every frame, so their scatter is drawn from a fixed seed. */
+    private static final long SEA_SEED = 20261007L;
+    /** Puff layout of a cloud, as offsets and half-sizes relative to the cloud radius. */
+    private static final float[][] CLOUD_PUFFS = {
+            { -0.72f, -0.02f, 0.50f, 0.30f }, { -0.30f, 0.12f, 0.60f, 0.40f },
+            { 0.22f, 0.06f, 0.58f, 0.38f }, { 0.74f, -0.04f, 0.42f, 0.26f } };
+
     private enum Phase { PLAYER_TURN, ENEMY_TURN, FINISHED }
 
     private final CorsairGame game;
@@ -85,6 +123,14 @@ public class BattleScreen extends ScreenAdapter {
     private float boardX;
     private float boardY;
     private float cell;
+    private float sceneTop;
+    private float sceneBottom;
+    private float horizonY;
+    private float skyHeight = 1f;
+    private float seaHeight = 1f;
+    /** Scratch colour for the gradient ramps, so a colour is not allocated per drawn row. */
+    private final Color tint = new Color();
+    private final Random seaRandom = new Random(SEA_SEED);
     private float compassX;
     private float compassY;
     private float buttonSize;
@@ -154,11 +200,19 @@ public class BattleScreen extends ScreenAdapter {
         float usableW = width - 2 * margin - arrowZone;
         float usableH = height - 2 * margin - topBand - bottomBand;
 
-        // Half a cell of slack on each side of the board for the reserve markers
-        cell = Math.max(1f, Math.min(usableH / BattleState.HEIGHT, usableW / (BattleState.WIDTH + 0.9f)));
+        // The scene is the board plus the sky the masts rise into and the water in front of the hulls,
+        // with half a hull of room beside the board for the ships and the reserve markers.
+        float sceneCells = BattleState.HEIGHT + MAST_BAND + SEA_DEPTH;
+        cell = Math.max(1f, Math.min(usableH / sceneCells, usableW / (BattleState.WIDTH + 2f * SHIP_ROOM)));
         float boardWidth = cell * BattleState.WIDTH;
-        boardX = margin + cell * 0.45f + (usableW - boardWidth - cell * 0.9f) / 2f;
-        boardY = margin + bottomBand + (usableH - cell * BattleState.HEIGHT) / 2f;
+        float sceneWidth = cell * (BattleState.WIDTH + 2f * SHIP_ROOM);
+        sceneBottom = margin + bottomBand + (usableH - cell * sceneCells) / 2f;
+        boardX = margin + (usableW - sceneWidth) / 2f + cell * SHIP_ROOM;
+        boardY = sceneBottom + cell * SEA_DEPTH;
+        sceneTop = boardY + cell * (BattleState.HEIGHT + MAST_BAND);
+        horizonY = boardY + cell * HORIZON_CELLS;
+        skyHeight = Math.max(1f, sceneTop - horizonY);
+        seaHeight = Math.max(1f, horizonY - sceneBottom);
 
         float rightEdge = boardX + boardWidth;
         float rightWidth = width - margin - rightEdge;
@@ -379,13 +433,14 @@ public class BattleScreen extends ScreenAdapter {
     }
 
     private void draw() {
-        ScreenUtils.clear(0.08f, 0.05f, 0.07f, 1f);
+        ScreenUtils.clear(BACKDROP);
         camera.update();
         shapes.setProjectionMatrix(camera.combined);
         batch.setProjectionMatrix(camera.combined);
 
         Gdx.gl.glEnable(GL20.GL_BLEND);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
+        drawSeaAndSky();
         drawBoard();
         drawControls();
         shapes.end();
@@ -393,6 +448,177 @@ public class BattleScreen extends ScreenAdapter {
         batch.begin();
         drawTexts();
         batch.end();
+    }
+
+    /**
+     * The sea and the sky, painted under everything else: gradients first, then the air, the sun and its
+     * reflections. Everything is expressed in cells so the view keeps its proportions on any screen.
+     */
+    private void drawSeaAndSky() {
+        // One row per pixel. Wider bands step by the whole band delta at once and read as stripes, and
+        // fractional bands leave a row out here and there; a fixed seed keeps the scatter still.
+        seaRandom.setSeed(SEA_SEED);
+        for (float y = horizonY; y < sceneTop; y += 1f) {
+            skyColorAt(y, tint);
+            shapes.setColor(tint);
+            shapes.rect(0f, y, width, 1.02f);
+        }
+        for (float y = horizonY - 1f; y >= sceneBottom; y -= 1f) {
+            seaColorAt(y, tint);
+            shapes.setColor(tint);
+            shapes.rect(0f, y, width, 1.02f);
+        }
+
+        drawHaze();
+        drawSun();
+        drawClouds();
+        drawWaves();
+        drawSunGlitter();
+        drawFoam();
+    }
+
+    /** The haze that hides the far end of the sea, as opaque rows mixed into the sky colour. */
+    private void drawHaze() {
+        float hazeHeight = cell * 0.70f;
+        for (float y = horizonY; y < horizonY + hazeHeight; y += 1f) {
+            float t = (y + 0.5f - horizonY) / hazeHeight;
+            float f = 0.30f * (float) Math.pow(Math.max(0f, 1f - t), 1.5);
+            skyColorAt(y, tint);
+            shapes.setColor(tint.r + (HAZE_COLOR.r - tint.r) * f,
+                    tint.g + (HAZE_COLOR.g - tint.g) * f,
+                    tint.b + (HAZE_COLOR.b - tint.b) * f, 1f);
+            shapes.rect(0f, y, width, 1.02f);
+        }
+        shapes.setColor(HORIZON_RIM);
+        shapes.rect(0f, horizonY - cell * 0.028f, width, cell * 0.028f);
+    }
+
+    /** The sun, low over the water: a broad glow, a halo and a small disc. */
+    private void drawSun() {
+        float sunX = width * SUN_X;
+        float sunY = horizonY + cell * 0.55f;
+        for (int i = 26; i >= 1; i--) {
+            float fade = 1f - i / 26f;
+            shapes.setColor(SUN_COLOR.r, SUN_COLOR.g, SUN_COLOR.b, (2.4f + 26f * fade * fade) / 255f);
+            shapes.circle(sunX, sunY, cell * 0.14f * i, 32);
+        }
+        shapes.setColor(SUN_DISC_COLOR.r, SUN_DISC_COLOR.g, SUN_DISC_COLOR.b, 62f / 255f);
+        for (int i = 5; i >= 1; i--) {
+            shapes.circle(sunX, sunY, cell * 0.40f * i / 5f, 32);
+        }
+        shapes.setColor(SUN_CORE_COLOR);
+        shapes.circle(sunX, sunY, cell * 0.16f, 32);
+    }
+
+    private void drawClouds() {
+        cloud(width * 0.13f, horizonY + skyHeight * 0.52f, cell * 0.70f, 240f / 255f);
+        cloud(width * 0.47f, horizonY + skyHeight * 0.90f, cell * 0.52f, 205f / 255f);
+        cloud(width * 0.74f, horizonY + skyHeight * 0.26f, cell * 0.86f, 235f / 255f);
+        cloud(width * 0.93f, horizonY + skyHeight * 0.70f, cell * 0.46f, 190f / 255f);
+        cloud(width * 0.60f, horizonY + skyHeight * 0.62f, cell * 0.30f, 150f / 255f);
+    }
+
+    /** A cluster of puffs, shaded underneath and lit on top. */
+    private void cloud(float cx, float cy, float radius, float alpha) {
+        for (float[] puff : CLOUD_PUFFS) {
+            puff(cx + puff[0] * radius, cy + puff[1] * radius,
+                    puff[2] * radius, puff[3] * radius, CLOUD_BASE, alpha * 0.70f);
+        }
+        for (float[] puff : CLOUD_PUFFS) {
+            puff(cx + puff[0] * radius, cy + (puff[1] + 0.14f) * radius,
+                    puff[2] * 0.84f * radius, puff[3] * 0.78f * radius, CLOUD_LIT, alpha);
+        }
+    }
+
+    /** ring==0 is the solid core, the outer rings fade it out; libGDX has no blur to soften it with. */
+    private void puff(float cx, float cy, float rx, float ry, Color color, float alpha) {
+        for (int ring = 2; ring >= 0; ring--) {
+            float k = 0.78f + 0.11f * ring;
+            shapes.setColor(color.r, color.g, color.b, ring == 0 ? alpha : alpha * 0.34f);
+            shapes.ellipse(cx - rx * k, cy - ry * k, rx * 2f * k, ry * 2f * k, 28);
+        }
+    }
+
+    /** Wave rows, dense and flat at the horizon and long and broken near the bottom of the frame. */
+    private void drawWaves() {
+        int rows = 96;
+        for (int i = 0; i < rows; i++) {
+            float t = (float) Math.pow((i + 0.5f) / rows, 1.8);
+            float y = horizonY - seaHeight * t;
+            float thickness = Math.max(1f, cell * (0.010f + 0.062f * t));
+            float span = cell * (0.18f + 1.90f * t);
+            float gap = span * (1.1f + 1.5f * (1f - t));
+            Color color = i % 2 == 0 ? CREST_COLOR : TROUGH_COLOR;
+            float alpha = (i % 2 == 0 ? 34f + 104f * t : 58f + 126f * t) / 255f;
+            shapes.setColor(color.r, color.g, color.b, alpha);
+            float x = -seaRandom.nextFloat() * gap;
+            while (x < width) {
+                shapes.rect(x, y, span * (0.55f + 0.80f * seaRandom.nextFloat()), thickness);
+                x += span + gap * (0.35f + seaRandom.nextFloat());
+            }
+        }
+    }
+
+    /** The sun's path on the water, widening as it comes closer. */
+    private void drawSunGlitter() {
+        float sunX = width * SUN_X;
+        int count = 190;
+        for (int i = 0; i < count; i++) {
+            float t = (float) Math.pow((i + 0.5f) / count, 1.7f);
+            float y = horizonY - seaHeight * t;
+            float alpha = (168f - 126f * t) * (0.35f + 0.65f * seaRandom.nextFloat());
+            if (alpha <= 0f) {
+                continue;
+            }
+            float w = cell * (0.05f + 0.62f * t) * (0.45f + seaRandom.nextFloat());
+            float cx = sunX + (seaRandom.nextFloat() * 2f - 1f) * cell * (0.08f + 1.35f * t);
+            shapes.setColor(SUN_COLOR.r, SUN_COLOR.g, SUN_COLOR.b, alpha / 255f);
+            shapes.rect(cx - w / 2f, y, w, Math.max(1f, cell * 0.011f * (1f + 2.4f * t)));
+        }
+    }
+
+    /** Loose foam in the foreground, to break the regularity of the wave rows. */
+    private void drawFoam() {
+        for (int i = 0; i < 70; i++) {
+            float y = horizonY - seaHeight * (0.72f + 0.28f * seaRandom.nextFloat());
+            float w = cell * (0.18f + 0.55f * seaRandom.nextFloat());
+            float x = seaRandom.nextFloat() * width;
+            shapes.setColor(FOAM_COLOR.r, FOAM_COLOR.g, FOAM_COLOR.b,
+                    (40f + 70f * seaRandom.nextFloat()) / 255f);
+            shapes.rect(x, y, w, Math.max(1f, cell * 0.018f));
+        }
+    }
+
+    private void skyColorAt(float y, Color out) {
+        ramp(SKY_POS, SKY_RGB, (y + 0.5f - horizonY) / skyHeight, out);
+    }
+
+    private void seaColorAt(float y, Color out) {
+        ramp(SEA_POS, SEA_RGB, (horizonY - y - 0.5f) / seaHeight, out);
+    }
+
+    /** Mixes the two stops a fraction falls between; t == 0 is the horizon end of either ramp. */
+    private void ramp(float[] stops, float[][] colors, float t, Color out) {
+        if (t < 0f) {
+            t = 0f;
+        } else if (t > 1f) {
+            t = 1f;
+        }
+        int i = 1;
+        while (i < stops.length - 1 && stops[i] < t) {
+            i++;
+        }
+        float span = stops[i] - stops[i - 1];
+        float f = span <= 0f ? 0f : (t - stops[i - 1]) / span;
+        float[] a = colors[i - 1];
+        float[] b = colors[i];
+        out.set((a[0] + (b[0] - a[0]) * f) / 255f,
+                (a[1] + (b[1] - a[1]) * f) / 255f,
+                (a[2] + (b[2] - a[2]) * f) / 255f, 1f);
+    }
+
+    private static Color color(int r, int g, int b) {
+        return new Color(r / 255f, g / 255f, b / 255f, 1f);
     }
 
     private void drawBoard() {
