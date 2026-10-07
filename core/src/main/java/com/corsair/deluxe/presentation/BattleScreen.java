@@ -70,6 +70,12 @@ public class BattleScreen extends ScreenAdapter {
     private static final Color SUN_DISC_COLOR = color(255, 252, 236);
     private static final Color SUN_CORE_COLOR = color(255, 253, 240);
     private static final Color FOAM_COLOR = color(214, 232, 245);
+    /** The boarding net: pale rope over the sea, with the dark gap of a torn opening in it. */
+    private static final Color ROPE_COLOR = color(217, 214, 199);
+    private static final Color ROPE_SHADE = color(133, 128, 117);
+    private static final Color GAP_COLOR = color(10, 13, 23);
+    /** The column of hull a side's hatches sit in; the ships are drawn over the ends of the net. */
+    private static final Color HULL_COLUMN_COLOR = new Color(0.25f, 0.16f, 0.1f, 1f);
 
     /** Where the sun sits across the scene, as a fraction of the width. */
     private static final float SUN_X = 0.30f;
@@ -79,6 +85,13 @@ public class BattleScreen extends ScreenAdapter {
     /** Half a hull of room beside the board on each side, and how high the horizon cuts across it. */
     private static final float SHIP_ROOM = 1.10f;
     private static final float HORIZON_CELLS = 2.55f;
+    /** Thickness of a strand, how far it runs past the outer grid line, and its dark outline. */
+    private static final float STRAND_THICKNESS = 0.04f;
+    private static final float STRAND_REACH = 0.45f;
+    private static final float STRAND_EDGE = 0.012f;
+    /** A torn opening: its radius, and how many slack strands cross it. */
+    private static final float HOLE_RADIUS = 0.38f;
+    private static final int HOLE_SPOKES = 6;
     /** The sea and the sky look the same on every frame, so their scatter is drawn from a fixed seed. */
     private static final long SEA_SEED = 20261007L;
     /** Puff layout of a cloud, as offsets and half-sizes relative to the cloud radius. */
@@ -626,18 +639,20 @@ public class BattleScreen extends ScreenAdapter {
         int hatchColumnEnemy = BattleState.hatchColumn(BattleSide.ENEMY);
         float pulse = 0.65f + 0.35f * (float) Math.sin(elapsed * 5f);
 
+        // The net is the playfield, so it goes down first: the two hull columns drawn over it cover the
+        // ends of the strands, right where the rope is lashed to the ship.
+        drawNet();
+
         for (int x = 0; x < BattleState.WIDTH; x++) {
+            if (x != hatchColumnPlayer && x != hatchColumnEnemy) {
+                continue;
+            }
             for (int y = 0; y < BattleState.HEIGHT; y++) {
                 float left = cellLeft(x);
                 float bottom = cellBottom(y);
-                boolean hatchColumn = x == hatchColumnPlayer || x == hatchColumnEnemy;
-
-                setTerrainColor(x, y);
+                shapes.setColor(HULL_COLUMN_COLOR);
                 shapes.rect(left, bottom, cell, cell);
-
-                if (hatchColumn) {
-                    drawHatch(x, y, left, bottom, pulse);
-                }
+                drawHatch(x, y, left, bottom, pulse);
             }
         }
 
@@ -657,17 +672,70 @@ public class BattleScreen extends ScreenAdapter {
         }
     }
 
-    private void setTerrainColor(int x, int y) {
-        boolean hatchColumn = x == BattleState.hatchColumn(BattleSide.PLAYER)
-                || x == BattleState.hatchColumn(BattleSide.ENEMY);
-        if (hatchColumn) {
-            shapes.setColor(0.25f, 0.16f, 0.1f, 1f);
-        } else if (state.isHole(x, y)) {
-            shapes.setColor(0f, 0f, 0f, 1f);
-        } else if ((x + y) % 2 == 0) {
-            shapes.setColor(0.67f, 0.5f, 0.3f, 1f);
+    /**
+     * The boarding net strung between the two hulls: one rope along every grid line, so a mesh opening
+     * is exactly one cell wide and a unit stands in the middle of an opening, never on a knot where two
+     * strands cross. The openings show the sea and the sky behind them.
+     */
+    private void drawNet() {
+        float thickness = cell * STRAND_THICKNESS;
+        float reach = cell * STRAND_REACH;
+        float left = cellLeft(1);
+        float right = cellLeft(BattleState.WIDTH - 1);
+        float bottom = cellBottom(BattleState.HEIGHT - 1);
+        float top = cellBottom(0) + cell;
+
+        for (int line = 0; line <= BattleState.HEIGHT; line++) {
+            strand(left - reach, bottom + line * cell - thickness / 2f, right - left + 2f * reach, thickness);
+        }
+        for (int line = 1; line < BattleState.WIDTH; line++) {
+            strand(cellLeft(line) - thickness / 2f, bottom, thickness, top - bottom);
+        }
+
+        for (int x = 0; x < BattleState.WIDTH; x++) {
+            for (int y = 0; y < BattleState.HEIGHT; y++) {
+                if (state.isHole(x, y)) {
+                    drawHole(x, y);
+                }
+            }
+        }
+    }
+
+    /** One strand, with a darker outline so the mesh stays readable against the bright sea. */
+    private void strand(float x, float y, float w, float h) {
+        float edge = cell * STRAND_EDGE;
+        shapes.setColor(ROPE_SHADE);
+        shapes.rect(x - edge, y - edge, w + 2f * edge, h + 2f * edge);
+        shapes.setColor(ROPE_COLOR);
+        shapes.rect(x, y, w, h);
+    }
+
+    /** A torn opening: the backdrop shows through it, ringed by rope and crossed by slack strands. */
+    private void drawHole(int x, int y) {
+        float cx = cellLeft(x) + cell / 2f;
+        float cy = cellBottom(y) + cell / 2f;
+        float radius = cell * HOLE_RADIUS;
+
+        shapes.setColor(GAP_COLOR);
+        shapes.circle(cx, cy, radius, 28);
+        backdropAt(cy, tint);
+        shapes.setColor(tint);
+        shapes.circle(cx, cy, radius * 0.86f, 28);
+
+        shapes.setColor(ROPE_COLOR);
+        for (int i = 0; i < HOLE_SPOKES; i++) {
+            float angle = (float) (i * Math.PI / HOLE_SPOKES) + 0.5f;
+            shapes.rect(cx + (float) Math.cos(angle) * radius * 0.8f,
+                    cy + (float) Math.sin(angle) * radius * 0.8f, cell * 0.16f, cell * 0.030f);
+        }
+    }
+
+    /** Whatever the background shows at this height: the sea below the horizon, the sky above it. */
+    private void backdropAt(float y, Color out) {
+        if (y < horizonY) {
+            seaColorAt(y, out);
         } else {
-            shapes.setColor(0.6f, 0.43f, 0.25f, 1f);
+            skyColorAt(y, out);
         }
     }
 
@@ -695,7 +763,7 @@ public class BattleScreen extends ScreenAdapter {
         shapes.rect(left + inset, bottom + inset, cell - 2 * inset, cell - 2 * inset);
 
         if (owner == BattleSide.PLAYER && openHatches[index]) {
-            drawEntryMarker(y, bottom);
+            drawEntryMarker(bottom);
         }
 
         // One small marker per pirate still waiting inside; drawn outside the hatch, from its top down
@@ -713,14 +781,15 @@ public class BattleScreen extends ScreenAdapter {
         }
     }
 
-    /** Shows the net square an open hatch will push its pirate onto. */
-    private void drawEntryMarker(int row, float bottom) {
+    /** Shows the mesh opening an open hatch will push its pirate onto. */
+    private void drawEntryMarker(float bottom) {
         int entryX = BattleState.entryColumn(BattleSide.PLAYER);
         float ex = cellLeft(entryX) + cell / 2f;
         float ey = bottom + cell / 2f;
         shapes.setColor(0.98f, 0.79f, 0.28f, 1f);
         shapes.circle(ex, ey, cell * 0.44f, 24);
-        setTerrainColor(entryX, row);
+        backdropAt(ey, tint);
+        shapes.setColor(tint);
         shapes.circle(ex, ey, cell * 0.34f, 24);
     }
 
