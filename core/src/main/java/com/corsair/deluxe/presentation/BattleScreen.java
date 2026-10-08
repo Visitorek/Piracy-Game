@@ -82,6 +82,8 @@ public class BattleScreen extends ScreenAdapter {
     /** How far the masts reach above the top deck, and how far the water reaches in front of the hulls. */
     private static final float MAST_BAND = 2f;
     private static final float SEA_DEPTH = 1.30f;
+    /** The net between the ships is drawn this much larger than the plain fit would give it. */
+    private static final float NET_SCALE = 1.2f;
     /** Half a hull of room beside the board on each side, and how high the horizon cuts across it. */
     private static final float SHIP_ROOM = 1.10f;
     private static final float HORIZON_CELLS = 2.55f;
@@ -216,14 +218,24 @@ public class BattleScreen extends ScreenAdapter {
         // The scene is the board plus the sky the masts rise into and the water in front of the hulls,
         // with half a hull of room beside the board for the ships and the reserve markers.
         float sceneCells = BattleState.HEIGHT + MAST_BAND + SEA_DEPTH;
-        cell = Math.max(1f, Math.min(usableH / sceneCells, usableW / (BattleState.WIDTH + 2f * SHIP_ROOM)));
+        float fit = Math.max(1f, Math.min(usableH / sceneCells, usableW / (BattleState.WIDTH + 2f * SHIP_ROOM)));
+        // The net is drawn NET_SCALE larger than that fit. The sky above the masts and the water in front
+        // of the hulls give up the room, so the scene still fills the same box between the text bands; a
+        // screen too narrow for the wider net keeps the plain fit.
+        float netScale = Math.max(1f,
+                Math.min(NET_SCALE, usableW / ((BattleState.WIDTH + 2f * SHIP_ROOM) * fit)));
+        cell = fit * netScale;
+        float bandCells = sceneCells / netScale - BattleState.HEIGHT;
+        float mastCells = bandCells * MAST_BAND / (MAST_BAND + SEA_DEPTH);
+        float seaCells = bandCells * SEA_DEPTH / (MAST_BAND + SEA_DEPTH);
         float boardWidth = cell * BattleState.WIDTH;
         float sceneWidth = cell * (BattleState.WIDTH + 2f * SHIP_ROOM);
-        sceneBottom = margin + bottomBand + (usableH - cell * sceneCells) / 2f;
+        sceneBottom = margin + bottomBand + (usableH - cell * (BattleState.HEIGHT + bandCells)) / 2f;
         boardX = margin + (usableW - sceneWidth) / 2f + cell * SHIP_ROOM;
-        boardY = sceneBottom + cell * SEA_DEPTH;
-        sceneTop = boardY + cell * (BattleState.HEIGHT + MAST_BAND);
-        horizonY = boardY + cell * HORIZON_CELLS;
+        boardY = sceneBottom + cell * seaCells;
+        sceneTop = boardY + cell * (BattleState.HEIGHT + mastCells);
+        // The horizon stays where it was, so the sky thins out evenly instead of the net rising into it.
+        horizonY = sceneBottom + cell * (HORIZON_CELLS + SEA_DEPTH) / netScale;
         skyHeight = Math.max(1f, sceneTop - horizonY);
         seaHeight = Math.max(1f, horizonY - sceneBottom);
 
