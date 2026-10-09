@@ -36,54 +36,73 @@ import java.util.Random;
 public class BattleScreen extends ScreenAdapter {
     private static final float ENEMY_THINK_SECONDS = 0.8f;
     private static final float INPUT_DELAY_SECONDS = 0.6f;
+
+    // =============================================================================================
+    // BATTLE SCREEN LOOK - PARAMETERS
+    //
+    // The whole scene is drawn procedurally with ShapeRenderer: no XML layout, no texture atlas, so
+    // every size, position and colour of the design is a knob in this block. The knobs are grouped
+    // by the element they belong to and each one says what it moves. The same list, as a table with
+    // the geometry formulas, the drawing order and recipes for common changes, is in
+    // .meta/battle-screen.md.
+    //
+    // Pipeline: layout() picks a text scale, computeGeometry() turns these numbers into pixels
+    // (cell, boardX, boardY, sceneTop, sceneBottom, horizonY, ...), then draw() paints the elements
+    // from the back: sea and sky, net, ships, deck squares with hatches, crew, controls, texts.
+    //
+    // Units: "cells" is a multiple of one net opening, the side of a field. Anything that has to
+    // keep its proportions when the board is resized is a fraction of a cell. Screen coordinates are
+    // pixels, (0, 0) in the bottom left corner, Y growing upwards.
+    // =============================================================================================
+
+    // --- 1. Screen frame and text bands ----------------------------------------------------------
+
     /** Cells smaller than this make the board unreadable, so the text scale is reduced instead. */
     private static final float MIN_CELL = 26f;
+    /** Text scale is 'screen height / this', so the text keeps its size relative to the board. */
+    private static final float TEXT_SCALE_HEIGHT = 760f;
+    /** The text never shrinks below this scale, even on a screen too small for the board. */
+    private static final float MIN_TEXT_SCALE = 0.8f;
+    /** Scales tried in order; the first one that keeps the cells at least MIN_CELL big wins. */
+    private static final float[] TEXT_SCALE_STEPS = { 2f, 1.6f, 1.3f, 1f };
+    /** Gap between two text blocks, as a fraction of the line height. */
+    private static final float TEXT_GAP = 0.12f;
+    /** Frame margin around the whole screen: at least this many pixels, or this share of the short side. */
+    private static final float MARGIN_MIN = 12f;
+    private static final float MARGIN_FRACTION = 0.02f;
+    /** Half a pixel: the centre of a one-pixel row, used when sampling the sky and the sea ramps. */
+    private static final float PIXEL_CENTRE = 0.5f;
     /** Longest variant of the turn line, so the top text band never has to grow. */
     private static final String WORST_TURN_LINE = "Tura " + BattleState.MAX_TURNS + "/" + BattleState.MAX_TURNS
             + " - PORAZKA - dotknij, aby kontynuowac";
     /** Longest realistic battle log entry; it is the text the bottom band is sized for. */
     private static final String LOG_RESERVE =
             "Wrog: wyprowadzenie 5 pir., pokonani: 5, wpadli: 5, zablokowane luki: 5, wycofani: 5";
-
+    /** The bottom band is at least this many lines tall, plus this much air above the log line. */
+    private static final float LOG_BAND_LINES = 1.6f;
+    private static final float LOG_BAND_PAD = 0.4f;
+    /** The column of arrows beside the board takes this share of the width, and this many lines. */
+    private static final float ARROW_ZONE_WIDTH = 0.14f;
+    private static final float ARROW_ZONE_LINES = 2.4f;
+    /** An arrow button is this share of the side panel wide, and this share of the free height tall. */
+    private static final float COMPASS_BUTTON_WIDTH = 3.4f;
+    private static final float COMPASS_BUTTON_HEIGHT = 0.24f;
+    /** The flee button: half its width is this many buttons, but never less than this share of the
+     * side panel; half its height is this many buttons, but never less than this many lines. */
+    private static final float FLEE_HALF_WIDTH_BUTTONS = 1.5f;
+    private static final float FLEE_HALF_WIDTH_OF_PANEL = 0.45f;
+    private static final float FLEE_HALF_HEIGHT_BUTTONS = 0.4f;
+    private static final float FLEE_HALF_HEIGHT_LINES = 0.75f;
+    /** How far under the compass the flee button sits, measured in button sizes. */
+    private static final float FLEE_DROP_BUTTONS = 2.2f;
+    /** The whole scene stands on this colour, so no gap between the bands ever shows through. */
+    private static final Color BACKDROP = color(20, 13, 18);
+    /** Each side owns a colour, used for its texts, hatches, crew, waiting markers and pennant. */
     private static final Color PLAYER_COLOR = new Color(0.25f, 0.55f, 1f, 1f);
     private static final Color ENEMY_COLOR = new Color(0.9f, 0.2f, 0.2f, 1f);
 
-    // Sky: hazy and pale along the horizon, deep blue overhead (t = 0 at the horizon, 1 at the top)
-    private static final float[] SKY_POS = { 0f, 0.07f, 0.20f, 0.42f, 0.70f, 1f };
-    private static final float[][] SKY_RGB = {
-            { 206, 227, 245 }, { 176, 208, 239 }, { 138, 182, 229 },
-            { 100, 152, 216 }, { 66, 115, 194 }, { 38, 76, 152 } };
-    // Sea: a bright band at the horizon, deepening toward the viewer
-    private static final float[] SEA_POS = { 0f, 0.11f, 0.24f, 0.40f, 0.58f, 0.79f, 1f };
-    private static final float[][] SEA_RGB = {
-            { 138, 173, 206 }, { 108, 144, 188 }, { 84, 122, 170 }, { 60, 92, 144 },
-            { 44, 68, 116 }, { 32, 50, 92 }, { 22, 35, 68 } };
+    // --- 2. Scene composition (in cells) ---------------------------------------------------------
 
-    private static final Color BACKDROP = color(20, 13, 18);
-    private static final Color HAZE_COLOR = color(238, 245, 253);
-    private static final Color HORIZON_RIM = color(176, 205, 231);
-    private static final Color CREST_COLOR = color(152, 190, 224);
-    private static final Color TROUGH_COLOR = color(14, 24, 52);
-    private static final Color CLOUD_LIT = color(252, 253, 255);
-    private static final Color CLOUD_BASE = color(178, 196, 224);
-    private static final Color SUN_COLOR = color(255, 244, 205);
-    private static final Color SUN_DISC_COLOR = color(255, 252, 236);
-    private static final Color SUN_CORE_COLOR = color(255, 253, 240);
-    private static final Color FOAM_COLOR = color(214, 232, 245);
-    /** The boarding net: pale rope over the sea, with the dark gap of a torn opening in it. */
-    private static final Color ROPE_COLOR = color(217, 214, 199);
-    private static final Color ROPE_SHADE = color(133, 128, 117);
-    private static final Color GAP_COLOR = color(10, 13, 23);
-    /**
-     * The ship's hull: one piece of timber from the gunwale down past the waterline, the deck squares
-     * the hatches sit in, and the rigging. The ships are drawn over the ends of the net.
-     */
-    private static final Color HULL_COLOR = color(107, 66, 36);
-    /** The sail, hung on the mast above the hull. */
-    private static final Color SAIL_COLOR = color(196, 186, 158);
-
-    /** Where the sun sits across the scene, as a fraction of the width. */
-    private static final float SUN_X = 0.30f;
     /** How far the masts reach above the top deck, and how far the water reaches in front of the hulls. */
     private static final float MAST_BAND = 2f;
     private static final float SEA_DEPTH = 1.30f;
@@ -91,9 +110,133 @@ public class BattleScreen extends ScreenAdapter {
     private static final float NET_SCALE = 1.2f;
     /** Half a hull of room beside the board on each side, and how high the horizon cuts across it. */
     private static final float SHIP_ROOM = 1.10f;
-    private static final float HORIZON_CELLS = 2.55f;
-    /** How far the rigging rises above the deck, shrunk if the sky band above the board is shorter. */
-    private static final float RIGGING_CELLS = 1.15f;
+    private static final float HORIZON_HEIGHT_CELLS = 2.55f;
+
+    // --- 3. Sky ----------------------------------------------------------------------------------
+
+    /** Sky ramp: hazy and pale along the horizon (t = 0), deep blue overhead (t = 1). */
+    private static final float[] SKY_POS = { 0f, 0.07f, 0.20f, 0.42f, 0.70f, 1f };
+    private static final float[][] SKY_RGB = {
+            { 206, 227, 245 }, { 176, 208, 239 }, { 138, 182, 229 },
+            { 100, 152, 216 }, { 66, 115, 194 }, { 38, 76, 152 } };
+    /** Rows are one pixel tall with a hair of overlap, so no seam shows between them. */
+    private static final float SKY_ROW_HEIGHT = 1.02f;
+    /** The haze over the horizon: how high it reaches, how strong it is, how fast it fades. */
+    private static final float HAZE_HEIGHT = 0.70f;
+    private static final float HAZE_STRENGTH = 0.30f;
+    private static final float HAZE_FALLOFF = 1.5f;
+    private static final Color HAZE_COLOR = color(238, 245, 253);
+    /** A bright line drawn right on the horizon: how thick, and in what colour. */
+    private static final float HORIZON_RIM_HEIGHT = 0.028f;
+    private static final Color HORIZON_RIM_COLOR = color(176, 205, 231);
+
+    // --- 4. Sun ----------------------------------------------------------------------------------
+
+    /** Where the sun sits: this share of the width across, this high above the horizon. */
+    private static final float SUN_X = 0.30f;
+    private static final float SUN_HEIGHT = 0.55f;
+    /** The glow: this many rings reaching this far out, the outermost all but invisible. */
+    private static final int SUN_GLOW_RINGS = 26;
+    private static final float SUN_GLOW_RADIUS = 0.14f;
+    private static final float SUN_GLOW_ALPHA = 2.4f;
+    private static final float SUN_GLOW_ALPHA_GROWTH = 26f;
+    private static final Color SUN_COLOR = color(255, 244, 205);
+    /** The halo: this many faint rings out to this radius. */
+    private static final int SUN_DISC_STEPS = 5;
+    private static final float SUN_DISC_RADIUS = 0.40f;
+    private static final float SUN_DISC_ALPHA = 62f;
+    private static final Color SUN_DISC_COLOR = color(255, 252, 236);
+    /** The core is the only fully opaque part of the sun. */
+    private static final float SUN_CORE_RADIUS = 0.16f;
+    private static final Color SUN_CORE_COLOR = color(255, 253, 240);
+
+    // --- 5. Clouds -------------------------------------------------------------------------------
+
+    /** Clouds in the sky: x and y as shares of the sky, radius in cells, and alpha 0..255. */
+    private static final float[][] CLOUD_LAYOUT = {
+            { 0.13f, 0.52f, 0.70f, 240f }, { 0.47f, 0.90f, 0.52f, 205f },
+            { 0.74f, 0.26f, 0.86f, 235f }, { 0.93f, 0.70f, 0.46f, 190f },
+            { 0.60f, 0.62f, 0.30f, 150f } };
+    /** Puff layout of a cloud, as offsets and half-sizes relative to the cloud radius. */
+    private static final float[][] CLOUD_PUFFS = {
+            { -0.72f, -0.02f, 0.50f, 0.30f }, { -0.30f, 0.12f, 0.60f, 0.40f },
+            { 0.22f, 0.06f, 0.58f, 0.38f }, { 0.74f, -0.04f, 0.42f, 0.26f } };
+    /** A puff is this many rings around a solid core, each ring this much bigger and fainter. */
+    private static final int PUFF_RINGS = 2;
+    private static final float PUFF_RING_BASE = 0.78f;
+    private static final float PUFF_RING_STEP = 0.11f;
+    private static final float PUFF_RING_ALPHA = 0.34f;
+    /** The lit cap sits this far above the shaded body and is this much smaller than it. */
+    private static final float PUFF_LIFT = 0.14f;
+    private static final float PUFF_LIT_WIDTH = 0.84f;
+    private static final float PUFF_LIT_HEIGHT = 0.78f;
+    /** How much of a cloud's alpha the shaded body gets; the lit cap gets all of it. */
+    private static final float CLOUD_SHADE_ALPHA = 0.70f;
+    /** A puff is a ring of this many segments. */
+    private static final int PUFF_SEGMENTS = 28;
+    private static final Color CLOUD_LIT = color(252, 253, 255);
+    private static final Color CLOUD_BASE = color(178, 196, 224);
+
+    // --- 6. Sea ----------------------------------------------------------------------------------
+
+    /** Sea ramp: a bright band at the horizon (t = 0), deepening towards the viewer (t = 1). */
+    private static final float[] SEA_POS = { 0f, 0.11f, 0.24f, 0.40f, 0.58f, 0.79f, 1f };
+    private static final float[][] SEA_RGB = {
+            { 138, 173, 206 }, { 108, 144, 188 }, { 84, 122, 170 }, { 60, 92, 144 },
+            { 44, 68, 116 }, { 32, 50, 92 }, { 22, 35, 68 } };
+    /** Rows are one pixel tall with a hair of overlap, so no seam shows between them. */
+    private static final float SEA_ROW_HEIGHT = 1.02f;
+    /** Wave rows from the horizon down: how many, and how fast they bunch up (an exponent, so a double). */
+    private static final int WAVE_ROWS = 96;
+    private static final double WAVE_FALLOFF = 1.8;
+    /** A wave mark is this thick and this long at the horizon, and this much more close by. */
+    private static final float WAVE_THICKNESS = 0.010f;
+    private static final float WAVE_THICKNESS_GROWTH = 0.062f;
+    private static final float WAVE_SPAN = 0.18f;
+    private static final float WAVE_SPAN_GROWTH = 1.90f;
+    /** The gap between two marks of a row, and how much wider it gets towards the viewer. */
+    private static final float WAVE_GAP = 1.1f;
+    private static final float WAVE_GAP_GROWTH = 1.5f;
+    /** Crest rows are pale, trough rows dark; both get stronger closer to the viewer. */
+    private static final float WAVE_CREST_ALPHA = 34f;
+    private static final float WAVE_CREST_ALPHA_GROWTH = 104f;
+    private static final float WAVE_TROUGH_ALPHA = 58f;
+    private static final float WAVE_TROUGH_ALPHA_GROWTH = 126f;
+    private static final Color CREST_COLOR = color(152, 190, 224);
+    private static final Color TROUGH_COLOR = color(14, 24, 52);
+    /** The sun's path on the water: how many flecks, how they bunch up and how they fade and spread. */
+    private static final int GLITTER_COUNT = 190;
+    private static final double GLITTER_FALLOFF = 1.7;
+    private static final float GLITTER_ALPHA = 168f;
+    private static final float GLITTER_FADE = 126f;
+    private static final float GLITTER_WIDTH = 0.05f;
+    private static final float GLITTER_WIDTH_GROWTH = 0.62f;
+    private static final float GLITTER_THICKNESS = 0.011f;
+    private static final float GLITTER_THICKNESS_GROWTH = 2.4f;
+    private static final float GLITTER_SPREAD = 0.08f;
+    private static final float GLITTER_SPREAD_GROWTH = 1.35f;
+    /** Loose foam in the foreground, to break the regularity of the wave rows. */
+    private static final int FOAM_COUNT = 70;
+    private static final float FOAM_DEPTH = 0.72f;
+    private static final float FOAM_DEPTH_SPREAD = 0.28f;
+    private static final float FOAM_WIDTH = 0.18f;
+    private static final float FOAM_WIDTH_SPREAD = 0.55f;
+    private static final float FOAM_ALPHA = 40f;
+    private static final float FOAM_ALPHA_SPREAD = 70f;
+    private static final float FOAM_THICKNESS = 0.018f;
+    private static final Color FOAM_COLOR = color(214, 232, 245);
+    /** The sea and the sky look the same on every frame, so their scatter is drawn from a fixed seed. */
+    private static final long SEA_SEED = 20261007L;
+
+    // --- 7. Ships (hull and rigging) -------------------------------------------------------------
+
+    /**
+     * The hull: one piece of timber from the gunwale down past the waterline, and the deck squares the
+     * hatches sit in. The ships are drawn over the ends of the net, so the strands end on the hull.
+     */
+    private static final Color HULL_COLOR = color(107, 66, 36);
+    /** The sail, hung on the mast above the hull. */
+    private static final Color SAIL_COLOR = color(196, 186, 158);
     /** How wide the hull is at the deck and at the keel, with both sides leaning in by the same amount. */
     private static final float HULL_TOP_CELLS = 2.14f;
     private static final float HULL_KEEL_CELLS = 1.62f;
@@ -102,20 +245,115 @@ public class BattleScreen extends ScreenAdapter {
     private static final float KEEL_DROP_CELLS = 0.50f;
     /** The whole ship, deck squares included, stands this far off the net. */
     private static final float SHIP_GAP_CELLS = 0.50f;
-    /** Thickness of a strand and its dark outline. */
+    /** A hull shrinks rather than running into the edge of the screen: this much of a cell stays clear. */
+    private static final float SHIP_FIT_MARGIN = 0.05f;
+    /** The keel never dips below this height above the bottom of the scene. */
+    private static final float KEEL_FLOOR = 0.02f;
+    /** How far the rigging rises above the deck, shrunk if the sky band above the board is shorter. */
+    private static final float RIGGING_CELLS = 1.15f;
+    /** The mast keeps at least this much sky, and takes at most this share of what is left over. */
+    private static final float RIGGING_MIN_SKY = 0.4f;
+    private static final float RIGGING_SKY_FIT = 0.90f;
+    /** Where the mast stands on the hull, as a share of the hull's width from its net-side edge. */
+    private static final float MAST_POSITION = 0.42f;
+    /** Half-width of a sail, as a share of the hull's width. */
+    private static final float SAIL_HALF_WIDTH = 0.21f;
+    /** How far a sail is pulled in at its corners, as a share of its half-width. */
+    private static final float SAIL_INSET = 0.2f;
+    /** The two sails, as shares of the rigging height above the deck. */
+    private static final float SAIL_LOWER_BOTTOM = 0.06f;
+    private static final float SAIL_LOWER_TOP = 0.42f;
+    private static final float SAIL_UPPER_BOTTOM = 0.46f;
+    private static final float SAIL_UPPER_TOP = 0.76f;
+    /** The spar the upper sail hangs from: its height, and how far it sticks out past the sails. */
+    private static final float SPAR_BOTTOM = 0.40f;
+    private static final float SPAR_HEIGHT = 0.09f;
+    private static final float SPAR_OVERHANG = 0.02f;
+    /** The mast: how thick it is, and how far up the rigging it reaches. */
+    private static final float MAST_THICKNESS = 0.044f;
+    private static final float MAST_TOP = 0.94f;
+    /** The pennant at the top of the mast, as shares of the rigging height. */
+    private static final float PENNANT_BOTTOM = 0.78f;
+    private static final float PENNANT_MID = 0.89f;
+
+    // --- 8. Net (rope and torn openings) ---------------------------------------------------------
+
+    /** Thickness of a strand, and of the dark outline that keeps it readable over the sea. */
     private static final float STRAND_THICKNESS = 0.04f;
     private static final float STRAND_EDGE = 0.012f;
-    /** The horizontal strands cross the gap to the hull and tuck a little way under it. */
-    private static final float STRAND_REACH = SHIP_GAP_CELLS + 0.06f;
+    /** The horizontal strands cross the gap to the hull and tuck this far under it. */
+    private static final float STRAND_TUCK = 0.06f;
+    private static final float STRAND_REACH = SHIP_GAP_CELLS + STRAND_TUCK;
     /** A torn opening: its radius, and how many slack strands cross it. */
     private static final float HOLE_RADIUS = 0.38f;
     private static final int HOLE_SPOKES = 6;
-    /** The sea and the sky look the same on every frame, so their scatter is drawn from a fixed seed. */
-    private static final long SEA_SEED = 20261007L;
-    /** Puff layout of a cloud, as offsets and half-sizes relative to the cloud radius. */
-    private static final float[][] CLOUD_PUFFS = {
-            { -0.72f, -0.02f, 0.50f, 0.30f }, { -0.30f, 0.12f, 0.60f, 0.40f },
-            { 0.22f, 0.06f, 0.58f, 0.38f }, { 0.74f, -0.04f, 0.42f, 0.26f } };
+    /** Inside the torn rim the backdrop shows through, over this much of the radius. */
+    private static final float HOLE_BACKDROP = 0.86f;
+    /** The slack strands: how far out they sit, how long and thick they are, and their twist. */
+    private static final float HOLE_SPOKE_REACH = 0.8f;
+    private static final float HOLE_SPOKE_LENGTH = 0.16f;
+    private static final float HOLE_SPOKE_THICKNESS = 0.030f;
+    private static final float HOLE_SPOKE_TWIST = 0.5f;
+    /** The opening is a circle of this many segments. */
+    private static final int HOLE_SEGMENTS = 28;
+    private static final Color ROPE_COLOR = color(217, 214, 199);
+    private static final Color ROPE_SHADE = color(133, 128, 117);
+    /** What shows through a torn opening: the dark gap of a piece missing from the net. */
+    private static final Color GAP_COLOR = color(10, 13, 23);
+
+    // --- 9. Hatches, crew and markers ------------------------------------------------------------
+
+    /** A pirate on the net: a dark shadow disc under a solid one. */
+    private static final float CREW_SHADOW_RADIUS = 0.38f;
+    private static final Color CREW_SHADOW_COLOR = new Color(0f, 0f, 0f, 0.6f);
+    private static final float CREW_RADIUS = 0.32f;
+    /** A crew pip is a circle of this many segments. */
+    private static final int CREW_SEGMENTS = 24;
+    /** How much of a cell the hatch plate leaves as a frame around itself. */
+    private static final float HATCH_INSET = 0.12f;
+    /** A destroyed hatch is this flat grey; the rest keep their side's colour. */
+    private static final Color HATCH_DISABLED_COLOR = new Color(0.35f, 0.35f, 0.35f, 1f);
+    /** An open hatch glows gold and pulses between these two brightnesses. */
+    private static final Color HATCH_OPEN_COLOR = new Color(0.98f, 0.79f, 0.28f, 1f);
+    private static final float HATCH_OPEN_BRIGHTNESS = 0.85f;
+    private static final float HATCH_OPEN_PULSE = 0.15f;
+    /** A closed hatch sits this dark; a ready one pulses, and the enemy's are always dimmed. */
+    private static final float HATCH_CLOSED_BRIGHTNESS = 0.6f;
+    private static final float HATCH_ENEMY_BRIGHTNESS = 0.8f;
+    /** The tap target of a hatch is widened by this many cells on each side. */
+    private static final float HATCH_TAP_REACH = 1f;
+    /** Waiting crew are ticked off just outside the hatch: this far out, this high, this far apart. */
+    private static final float WAITING_MARKER_INSET = 0.36f;
+    private static final float WAITING_MARKER_TOP = 0.82f;
+    private static final float WAITING_MARKER_STEP = 0.22f;
+    private static final float WAITING_MARKER_RADIUS = 0.08f;
+    /** A waiting marker is a circle of this many segments. */
+    private static final int WAITING_MARKER_SEGMENTS = 12;
+    /** The ready-to-release pulse: base, swing and speed (radians per second) of the sine. */
+    private static final float HATCH_PULSE_BASE = 0.65f;
+    private static final float HATCH_PULSE_SWING = 0.35f;
+    private static final float HATCH_PULSE_SPEED = 5f;
+    /** The ring showing which mesh opening an open hatch will push its pirate onto. */
+    private static final float ENTRY_MARKER_RADIUS = 0.44f;
+    private static final float ENTRY_MARKER_INNER = 0.34f;
+    /** The entry marker is a circle of this many segments. */
+    private static final int ENTRY_MARKER_SEGMENTS = 24;
+
+    // --- 10. Controls ----------------------------------------------------------------------------
+
+    /** An arrow button: the plate behind it, the arrow on it, and how dim it is when it cannot act. */
+    private static final float BUTTON_FACE = 0.92f;
+    private static final Color BUTTON_FACE_COLOR = new Color(0.2f, 0.2f, 0.28f, 1f);
+    private static final float ARROW_RADIUS = 0.3f;
+    private static final float ARROW_TAIL = 0.6f;
+    private static final float ARROW_WING = 0.7f;
+    private static final Color ARROW_COLOR = new Color(0.95f, 0.8f, 0.35f, 1f);
+    private static final float CONTROL_INACTIVE = 0.45f;
+    /** Padding left and right of "UCIECZKA", as a fraction of the line height. */
+    private static final float FLEE_LABEL_PAD = 0.4f;
+    /** The flee button is a plain dark red plate with its label on top. */
+    private static final Color FLEE_COLOR = new Color(0.45f, 0.12f, 0.12f, 1f);
+    // --- end of look parameters ------------------------------------------------------------------
 
     private enum Phase { PLAYER_TURN, ENEMY_TURN, FINISHED }
 
@@ -200,14 +438,14 @@ public class BattleScreen extends ScreenAdapter {
         width = w;
         height = h;
         camera.setToOrtho(false, w, h);
-        margin = Math.max(12f, Math.min(w, h) * 0.02f);
+        margin = Math.max(MARGIN_MIN, Math.min(w, h) * MARGIN_FRACTION);
 
         // The battle screen used to run at 'h / 760', which is barely readable on a phone, so the text is
         // drawn twice as large. On very small screens the board would not fit any more, so the multiplier
         // drops until the cells are usable again.
-        float[] multipliers = { 2f, 1.6f, 1.3f, 1f };
+        float[] multipliers = TEXT_SCALE_STEPS;
         for (int i = 0; i < multipliers.length; i++) {
-            computeGeometry(Math.max(0.8f, h / 760f) * multipliers[i]);
+            computeGeometry(Math.max(MIN_TEXT_SCALE, h / TEXT_SCALE_HEIGHT) * multipliers[i]);
             if (cell >= MIN_CELL || i == multipliers.length - 1) {
                 break;
             }
@@ -218,7 +456,7 @@ public class BattleScreen extends ScreenAdapter {
         this.textScale = textScale;
         font.getData().setScale(textScale);
         lineHeight = font.getLineHeight();
-        float gap = lineHeight * 0.12f;
+        float gap = lineHeight * TEXT_GAP;
 
         // Full-width text bands above and below the board; the board and the arrows share the middle.
         // Both bands are sized for the longest text they can ever show, never for the current one.
@@ -226,8 +464,8 @@ public class BattleScreen extends ScreenAdapter {
         topBand = measure(playerLine(), textWidth) + measure(enemyLine(), textWidth)
                 + Math.max(measure(turnLine(), textWidth), measure(WORST_TURN_LINE, textWidth))
                 + measure(hintLine(), textWidth) + gap * 3f;
-        bottomBand = Math.max(lineHeight * 1.6f, measure(LOG_RESERVE, textWidth) + lineHeight * 0.4f);
-        float arrowZone = Math.max(width * 0.14f, lineHeight * 2.4f);
+        bottomBand = Math.max(lineHeight * LOG_BAND_LINES, measure(LOG_RESERVE, textWidth) + lineHeight * LOG_BAND_PAD);
+        float arrowZone = Math.max(width * ARROW_ZONE_WIDTH, lineHeight * ARROW_ZONE_LINES);
         float usableW = width - 2 * margin - arrowZone;
         float usableH = height - 2 * margin - topBand - bottomBand;
 
@@ -251,7 +489,7 @@ public class BattleScreen extends ScreenAdapter {
         boardY = sceneBottom + cell * seaCells;
         sceneTop = boardY + cell * (BattleState.HEIGHT + mastCells);
         // The horizon stays where it was, so the sky thins out evenly instead of the net rising into it.
-        horizonY = sceneBottom + cell * (HORIZON_CELLS + SEA_DEPTH) / netScale;
+        horizonY = sceneBottom + cell * (HORIZON_HEIGHT_CELLS + SEA_DEPTH) / netScale;
         skyHeight = Math.max(1f, sceneTop - horizonY);
         seaHeight = Math.max(1f, horizonY - sceneBottom);
 
@@ -259,12 +497,12 @@ public class BattleScreen extends ScreenAdapter {
         float rightWidth = width - margin - rightEdge;
         compassX = rightEdge + rightWidth / 2f;
         compassY = boardY + cell * BattleState.HEIGHT / 2f;
-        buttonSize = Math.min(rightWidth / 3.4f, usableH * 0.24f);
+        buttonSize = Math.min(rightWidth / COMPASS_BUTTON_WIDTH, usableH * COMPASS_BUTTON_HEIGHT);
 
-        fleeHalfWidth = Math.max(buttonSize * 1.5f, rightWidth * 0.45f);
-        fleeHalfHeight = Math.max(buttonSize * 0.4f, lineHeight * 0.75f);
+        fleeHalfWidth = Math.max(buttonSize * FLEE_HALF_WIDTH_BUTTONS, rightWidth * FLEE_HALF_WIDTH_OF_PANEL);
+        fleeHalfHeight = Math.max(buttonSize * FLEE_HALF_HEIGHT_BUTTONS, lineHeight * FLEE_HALF_HEIGHT_LINES);
         fleeX = compassX;
-        fleeY = Math.max(boardY + fleeHalfHeight, compassY - buttonSize * 2.2f);
+        fleeY = Math.max(boardY + fleeHalfHeight, compassY - buttonSize * FLEE_DROP_BUTTONS);
     }
 
     @Override
@@ -317,11 +555,11 @@ public class BattleScreen extends ScreenAdapter {
             }
         }
 
-        // The tap target is widened by a cell on each side to make hatches easy to hit
+        // The tap target is widened by HATCH_TAP_REACH cells on each side to make hatches easy to hit
         float left = cellLeft(BattleState.hatchColumn(BattleSide.PLAYER));
         for (int i = 0; i < BattleState.HATCH_ROWS.length; i++) {
             float bottom = cellBottom(BattleState.HATCH_ROWS[i]);
-            if (touchX >= left - cell && touchX <= left + cell * 2f
+            if (touchX >= left - cell * HATCH_TAP_REACH && touchX <= left + cell * (1f + HATCH_TAP_REACH)
                     && touchY >= bottom && touchY <= bottom + cell) {
                 toggleHatch(i);
                 return;
@@ -510,12 +748,12 @@ public class BattleScreen extends ScreenAdapter {
         for (float y = horizonY; y < sceneTop; y += 1f) {
             skyColorAt(y, tint);
             shapes.setColor(tint);
-            shapes.rect(0f, y, width, 1.02f);
+            shapes.rect(0f, y, width, SKY_ROW_HEIGHT);
         }
         for (float y = horizonY - 1f; y >= sceneBottom; y -= 1f) {
             seaColorAt(y, tint);
             shapes.setColor(tint);
-            shapes.rect(0f, y, width, 1.02f);
+            shapes.rect(0f, y, width, SEA_ROW_HEIGHT);
         }
 
         drawHaze();
@@ -528,77 +766,77 @@ public class BattleScreen extends ScreenAdapter {
 
     /** The haze that hides the far end of the sea, as opaque rows mixed into the sky colour. */
     private void drawHaze() {
-        float hazeHeight = cell * 0.70f;
+        float hazeHeight = cell * HAZE_HEIGHT;
         for (float y = horizonY; y < horizonY + hazeHeight; y += 1f) {
-            float t = (y + 0.5f - horizonY) / hazeHeight;
-            float f = 0.30f * (float) Math.pow(Math.max(0f, 1f - t), 1.5);
+            float t = (y + PIXEL_CENTRE - horizonY) / hazeHeight;
+            float f = HAZE_STRENGTH * (float) Math.pow(Math.max(0f, 1f - t), HAZE_FALLOFF);
             skyColorAt(y, tint);
             shapes.setColor(tint.r + (HAZE_COLOR.r - tint.r) * f,
                     tint.g + (HAZE_COLOR.g - tint.g) * f,
                     tint.b + (HAZE_COLOR.b - tint.b) * f, 1f);
-            shapes.rect(0f, y, width, 1.02f);
+            shapes.rect(0f, y, width, SKY_ROW_HEIGHT);
         }
-        shapes.setColor(HORIZON_RIM);
-        shapes.rect(0f, horizonY - cell * 0.028f, width, cell * 0.028f);
+        shapes.setColor(HORIZON_RIM_COLOR);
+        shapes.rect(0f, horizonY - cell * HORIZON_RIM_HEIGHT, width, cell * HORIZON_RIM_HEIGHT);
     }
 
     /** The sun, low over the water: a broad glow, a halo and a small disc. */
     private void drawSun() {
         float sunX = width * SUN_X;
-        float sunY = horizonY + cell * 0.55f;
-        for (int i = 26; i >= 1; i--) {
-            float fade = 1f - i / 26f;
-            shapes.setColor(SUN_COLOR.r, SUN_COLOR.g, SUN_COLOR.b, (2.4f + 26f * fade * fade) / 255f);
-            shapes.circle(sunX, sunY, cell * 0.14f * i, 32);
+        float sunY = horizonY + cell * SUN_HEIGHT;
+        for (int i = SUN_GLOW_RINGS; i >= 1; i--) {
+            float fade = 1f - i / (float) SUN_GLOW_RINGS;
+            shapes.setColor(SUN_COLOR.r, SUN_COLOR.g, SUN_COLOR.b,
+                    (SUN_GLOW_ALPHA + SUN_GLOW_ALPHA_GROWTH * fade * fade) / 255f);
+            shapes.circle(sunX, sunY, cell * SUN_GLOW_RADIUS * i, 32);
         }
-        shapes.setColor(SUN_DISC_COLOR.r, SUN_DISC_COLOR.g, SUN_DISC_COLOR.b, 62f / 255f);
-        for (int i = 5; i >= 1; i--) {
-            shapes.circle(sunX, sunY, cell * 0.40f * i / 5f, 32);
+        shapes.setColor(SUN_DISC_COLOR.r, SUN_DISC_COLOR.g, SUN_DISC_COLOR.b, SUN_DISC_ALPHA / 255f);
+        for (int i = SUN_DISC_STEPS; i >= 1; i--) {
+            shapes.circle(sunX, sunY, cell * SUN_DISC_RADIUS * i / SUN_DISC_STEPS, 32);
         }
         shapes.setColor(SUN_CORE_COLOR);
-        shapes.circle(sunX, sunY, cell * 0.16f, 32);
+        shapes.circle(sunX, sunY, cell * SUN_CORE_RADIUS, 32);
     }
 
     private void drawClouds() {
-        cloud(width * 0.13f, horizonY + skyHeight * 0.52f, cell * 0.70f, 240f / 255f);
-        cloud(width * 0.47f, horizonY + skyHeight * 0.90f, cell * 0.52f, 205f / 255f);
-        cloud(width * 0.74f, horizonY + skyHeight * 0.26f, cell * 0.86f, 235f / 255f);
-        cloud(width * 0.93f, horizonY + skyHeight * 0.70f, cell * 0.46f, 190f / 255f);
-        cloud(width * 0.60f, horizonY + skyHeight * 0.62f, cell * 0.30f, 150f / 255f);
+        for (float[] c : CLOUD_LAYOUT) {
+            cloud(width * c[0], horizonY + skyHeight * c[1], cell * c[2], c[3] / 255f);
+        }
     }
 
     /** A cluster of puffs, shaded underneath and lit on top. */
     private void cloud(float cx, float cy, float radius, float alpha) {
         for (float[] puff : CLOUD_PUFFS) {
             puff(cx + puff[0] * radius, cy + puff[1] * radius,
-                    puff[2] * radius, puff[3] * radius, CLOUD_BASE, alpha * 0.70f);
+                    puff[2] * radius, puff[3] * radius, CLOUD_BASE, alpha * CLOUD_SHADE_ALPHA);
         }
         for (float[] puff : CLOUD_PUFFS) {
-            puff(cx + puff[0] * radius, cy + (puff[1] + 0.14f) * radius,
-                    puff[2] * 0.84f * radius, puff[3] * 0.78f * radius, CLOUD_LIT, alpha);
+            puff(cx + puff[0] * radius, cy + (puff[1] + PUFF_LIFT) * radius,
+                    puff[2] * PUFF_LIT_WIDTH * radius, puff[3] * PUFF_LIT_HEIGHT * radius, CLOUD_LIT, alpha);
         }
     }
 
     /** ring==0 is the solid core, the outer rings fade it out; libGDX has no blur to soften it with. */
     private void puff(float cx, float cy, float rx, float ry, Color color, float alpha) {
-        for (int ring = 2; ring >= 0; ring--) {
-            float k = 0.78f + 0.11f * ring;
-            shapes.setColor(color.r, color.g, color.b, ring == 0 ? alpha : alpha * 0.34f);
-            shapes.ellipse(cx - rx * k, cy - ry * k, rx * 2f * k, ry * 2f * k, 28);
+        for (int ring = PUFF_RINGS; ring >= 0; ring--) {
+            float k = PUFF_RING_BASE + PUFF_RING_STEP * ring;
+            shapes.setColor(color.r, color.g, color.b, ring == 0 ? alpha : alpha * PUFF_RING_ALPHA);
+            shapes.ellipse(cx - rx * k, cy - ry * k, rx * 2f * k, ry * 2f * k, PUFF_SEGMENTS);
         }
     }
 
     /** Wave rows, dense and flat at the horizon and long and broken near the bottom of the frame. */
     private void drawWaves() {
-        int rows = 96;
-        for (int i = 0; i < rows; i++) {
-            float t = (float) Math.pow((i + 0.5f) / rows, 1.8);
+        // The last multipliers of every mark are its scatter; they stay here, with the drawing.
+        for (int i = 0; i < WAVE_ROWS; i++) {
+            float t = (float) Math.pow((i + 0.5f) / WAVE_ROWS, WAVE_FALLOFF);
             float y = horizonY - seaHeight * t;
-            float thickness = Math.max(1f, cell * (0.010f + 0.062f * t));
-            float span = cell * (0.18f + 1.90f * t);
-            float gap = span * (1.1f + 1.5f * (1f - t));
+            float thickness = Math.max(1f, cell * (WAVE_THICKNESS + WAVE_THICKNESS_GROWTH * t));
+            float span = cell * (WAVE_SPAN + WAVE_SPAN_GROWTH * t);
+            float gap = span * (WAVE_GAP + WAVE_GAP_GROWTH * (1f - t));
             Color color = i % 2 == 0 ? CREST_COLOR : TROUGH_COLOR;
-            float alpha = (i % 2 == 0 ? 34f + 104f * t : 58f + 126f * t) / 255f;
+            float alpha = (i % 2 == 0 ? WAVE_CREST_ALPHA + WAVE_CREST_ALPHA_GROWTH * t
+                    : WAVE_TROUGH_ALPHA + WAVE_TROUGH_ALPHA_GROWTH * t) / 255f;
             shapes.setColor(color.r, color.g, color.b, alpha);
             float x = -seaRandom.nextFloat() * gap;
             while (x < width) {
@@ -611,39 +849,38 @@ public class BattleScreen extends ScreenAdapter {
     /** The sun's path on the water, widening as it comes closer. */
     private void drawSunGlitter() {
         float sunX = width * SUN_X;
-        int count = 190;
-        for (int i = 0; i < count; i++) {
-            float t = (float) Math.pow((i + 0.5f) / count, 1.7f);
+        for (int i = 0; i < GLITTER_COUNT; i++) {
+            float t = (float) Math.pow((i + 0.5f) / GLITTER_COUNT, GLITTER_FALLOFF);
             float y = horizonY - seaHeight * t;
-            float alpha = (168f - 126f * t) * (0.35f + 0.65f * seaRandom.nextFloat());
+            float alpha = (GLITTER_ALPHA - GLITTER_FADE * t) * (0.35f + 0.65f * seaRandom.nextFloat());
             if (alpha <= 0f) {
                 continue;
             }
-            float w = cell * (0.05f + 0.62f * t) * (0.45f + seaRandom.nextFloat());
-            float cx = sunX + (seaRandom.nextFloat() * 2f - 1f) * cell * (0.08f + 1.35f * t);
+            float w = cell * (GLITTER_WIDTH + GLITTER_WIDTH_GROWTH * t) * (0.45f + seaRandom.nextFloat());
+            float cx = sunX + (seaRandom.nextFloat() * 2f - 1f) * cell * (GLITTER_SPREAD + GLITTER_SPREAD_GROWTH * t);
             shapes.setColor(SUN_COLOR.r, SUN_COLOR.g, SUN_COLOR.b, alpha / 255f);
-            shapes.rect(cx - w / 2f, y, w, Math.max(1f, cell * 0.011f * (1f + 2.4f * t)));
+            shapes.rect(cx - w / 2f, y, w, Math.max(1f, cell * GLITTER_THICKNESS * (1f + GLITTER_THICKNESS_GROWTH * t)));
         }
     }
 
     /** Loose foam in the foreground, to break the regularity of the wave rows. */
     private void drawFoam() {
-        for (int i = 0; i < 70; i++) {
-            float y = horizonY - seaHeight * (0.72f + 0.28f * seaRandom.nextFloat());
-            float w = cell * (0.18f + 0.55f * seaRandom.nextFloat());
+        for (int i = 0; i < FOAM_COUNT; i++) {
+            float y = horizonY - seaHeight * (FOAM_DEPTH + FOAM_DEPTH_SPREAD * seaRandom.nextFloat());
+            float w = cell * (FOAM_WIDTH + FOAM_WIDTH_SPREAD * seaRandom.nextFloat());
             float x = seaRandom.nextFloat() * width;
             shapes.setColor(FOAM_COLOR.r, FOAM_COLOR.g, FOAM_COLOR.b,
-                    (40f + 70f * seaRandom.nextFloat()) / 255f);
-            shapes.rect(x, y, w, Math.max(1f, cell * 0.018f));
+                    (FOAM_ALPHA + FOAM_ALPHA_SPREAD * seaRandom.nextFloat()) / 255f);
+            shapes.rect(x, y, w, Math.max(1f, cell * FOAM_THICKNESS));
         }
     }
 
     private void skyColorAt(float y, Color out) {
-        ramp(SKY_POS, SKY_RGB, (y + 0.5f - horizonY) / skyHeight, out);
+        ramp(SKY_POS, SKY_RGB, (y + PIXEL_CENTRE - horizonY) / skyHeight, out);
     }
 
     private void seaColorAt(float y, Color out) {
-        ramp(SEA_POS, SEA_RGB, (horizonY - y - 0.5f) / seaHeight, out);
+        ramp(SEA_POS, SEA_RGB, (horizonY - y - PIXEL_CENTRE) / seaHeight, out);
     }
 
     /** Mixes the two stops a fraction falls between; t == 0 is the horizon end of either ramp. */
@@ -673,7 +910,7 @@ public class BattleScreen extends ScreenAdapter {
     private void drawBoard() {
         int hatchColumnPlayer = BattleState.hatchColumn(BattleSide.PLAYER);
         int hatchColumnEnemy = BattleState.hatchColumn(BattleSide.ENEMY);
-        float pulse = 0.65f + 0.35f * (float) Math.sin(elapsed * 5f);
+        float pulse = HATCH_PULSE_BASE + HATCH_PULSE_SWING * (float) Math.sin(elapsed * HATCH_PULSE_SPEED);
 
         // The net is the playfield, so it goes down first: the two hull columns drawn over it cover the
         // ends of the strands, right where the rope is lashed to the ship.
@@ -704,10 +941,10 @@ public class BattleScreen extends ScreenAdapter {
                 }
                 float cx = cellLeft(x) + cell / 2f;
                 float cy = cellBottom(y) + cell / 2f;
-                shapes.setColor(0f, 0f, 0f, 0.6f);
-                shapes.circle(cx, cy, cell * 0.38f, 24);
+                shapes.setColor(CREW_SHADOW_COLOR);
+                shapes.circle(cx, cy, cell * CREW_SHADOW_RADIUS, CREW_SEGMENTS);
                 shapes.setColor(occupant == BattleSide.PLAYER ? PLAYER_COLOR : ENEMY_COLOR);
-                shapes.circle(cx, cy, cell * 0.32f, 24);
+                shapes.circle(cx, cy, cell * CREW_RADIUS, CREW_SEGMENTS);
             }
         }
     }
@@ -730,11 +967,11 @@ public class BattleScreen extends ScreenAdapter {
         float out = player ? -1f : 1f;
         float near = edge + shipShift(player ? BattleSide.PLAYER : BattleSide.ENEMY);
         float room = player ? near - margin : width - margin - near;
-        float span = Math.max(cell, Math.min(cell * HULL_TOP_CELLS, room - cell * 0.05f));
+        float span = Math.max(cell, Math.min(cell * HULL_TOP_CELLS, room - cell * SHIP_FIT_MARGIN));
         float deckY = boardY + cell * (BattleState.HEIGHT + DECK_LIFT_CELLS);
         // The water in front of the hull is shallow, so the keel stops at the bottom of the scene rather
         // than reaching into the log line underneath it.
-        float keelY = Math.max(sceneBottom + cell * 0.02f, boardY - cell * KEEL_DROP_CELLS);
+        float keelY = Math.max(sceneBottom + cell * KEEL_FLOOR, boardY - cell * KEEL_DROP_CELLS);
         float farDeck = near + out * span;
         // The sides run straight down to the water and then lean in by the same amount on either side,
         // so the hull is symmetric about its own centre.
@@ -748,23 +985,23 @@ public class BattleScreen extends ScreenAdapter {
 
         // Rigging: a mast with a square sail hung on it and the side's pennant at the top. It is sized to
         // the sky left above the deck, so on a short screen the mast shortens instead of reaching the text.
-        float sky = Math.max(cell * 0.4f, sceneTop - deckY);
-        float rig = Math.min(RIGGING_CELLS, sky / cell * 0.90f) * cell;
-        float mastX = near + out * span * 0.42f;
-        float half = span * 0.21f;
+        float sky = Math.max(cell * RIGGING_MIN_SKY, sceneTop - deckY);
+        float rig = Math.min(RIGGING_CELLS, sky / cell * RIGGING_SKY_FIT) * cell;
+        float mastX = near + out * span * MAST_POSITION;
+        float half = span * SAIL_HALF_WIDTH;
 
-        drawSailPanel(mastX, half, deckY + rig * 0.06f, deckY + rig * 0.42f);
-        drawSailPanel(mastX, half, deckY + rig * 0.46f, deckY + rig * 0.76f);
+        drawSailPanel(mastX, half, deckY + rig * SAIL_LOWER_BOTTOM, deckY + rig * SAIL_LOWER_TOP);
+        drawSailPanel(mastX, half, deckY + rig * SAIL_UPPER_BOTTOM, deckY + rig * SAIL_UPPER_TOP);
 
         // The spar the upper sail hangs from, then the mast splitting both sails, then the pennant.
         shapes.setColor(HULL_COLOR);
-        shapes.rect(mastX - half - cell * 0.02f, deckY + rig * 0.40f,
-                2f * half + cell * 0.04f, Math.max(1f, rig * 0.09f));
-        shapes.rect(mastX - cell * 0.022f, deckY, cell * 0.044f, rig * 0.94f);
+        shapes.rect(mastX - half - cell * SPAR_OVERHANG, deckY + rig * SPAR_BOTTOM,
+                2f * half + cell * 2f * SPAR_OVERHANG, Math.max(1f, rig * SPAR_HEIGHT));
+        shapes.rect(mastX - cell * MAST_THICKNESS / 2f, deckY, cell * MAST_THICKNESS, rig * MAST_TOP);
 
         shapes.setColor(player ? PLAYER_COLOR : ENEMY_COLOR);
-        shapes.triangle(mastX, deckY + rig, mastX, deckY + rig * 0.78f,
-                mastX - out * half, deckY + rig * 0.89f);
+        shapes.triangle(mastX, deckY + rig, mastX, deckY + rig * PENNANT_BOTTOM,
+                mastX - out * half, deckY + rig * PENNANT_MID);
     }
 
     /** One slice of the hull: a band between two heights, with both edges given at each height. */
@@ -777,7 +1014,7 @@ public class BattleScreen extends ScreenAdapter {
 
     /** A square sail hung on the mast, drawn as the trapezoid its left and right halves make. */
     private void drawSailPanel(float mastX, float halfWidth, float bottom, float top) {
-        float inset = halfWidth * 0.2f;
+        float inset = halfWidth * SAIL_INSET;
         shapes.setColor(SAIL_COLOR);
         shapes.triangle(mastX - halfWidth, bottom + inset, mastX - halfWidth, top - inset, mastX, top);
         shapes.triangle(mastX - halfWidth, bottom + inset, mastX, top, mastX, bottom);
@@ -831,16 +1068,17 @@ public class BattleScreen extends ScreenAdapter {
         float radius = cell * HOLE_RADIUS;
 
         shapes.setColor(GAP_COLOR);
-        shapes.circle(cx, cy, radius, 28);
+        shapes.circle(cx, cy, radius, HOLE_SEGMENTS);
         backdropAt(cy, tint);
         shapes.setColor(tint);
-        shapes.circle(cx, cy, radius * 0.86f, 28);
+        shapes.circle(cx, cy, radius * HOLE_BACKDROP, HOLE_SEGMENTS);
 
         shapes.setColor(ROPE_COLOR);
         for (int i = 0; i < HOLE_SPOKES; i++) {
-            float angle = (float) (i * Math.PI / HOLE_SPOKES) + 0.5f;
-            shapes.rect(cx + (float) Math.cos(angle) * radius * 0.8f,
-                    cy + (float) Math.sin(angle) * radius * 0.8f, cell * 0.16f, cell * 0.030f);
+            float angle = (float) (i * Math.PI / HOLE_SPOKES) + HOLE_SPOKE_TWIST;
+            shapes.rect(cx + (float) Math.cos(angle) * radius * HOLE_SPOKE_REACH,
+                    cy + (float) Math.sin(angle) * radius * HOLE_SPOKE_REACH,
+                    cell * HOLE_SPOKE_LENGTH, cell * HOLE_SPOKE_THICKNESS);
         }
     }
 
@@ -859,20 +1097,22 @@ public class BattleScreen extends ScreenAdapter {
             return;
         }
         BattleSide owner = x == 0 ? BattleSide.PLAYER : BattleSide.ENEMY;
-        float inset = cell * 0.12f;
+        float inset = cell * HATCH_INSET;
         if (state.isHatchDisabled(owner, index)) {
-            shapes.setColor(0.35f, 0.35f, 0.35f, 1f);
+            shapes.setColor(HATCH_DISABLED_COLOR);
         } else if (owner == BattleSide.PLAYER) {
             if (openHatches[index]) {
-                float brightness = 0.85f + 0.15f * pulse;
-                shapes.setColor(0.98f * brightness, 0.79f * brightness, 0.28f * brightness, 1f);
+                float brightness = HATCH_OPEN_BRIGHTNESS + HATCH_OPEN_PULSE * pulse;
+                shapes.setColor(HATCH_OPEN_COLOR.r * brightness, HATCH_OPEN_COLOR.g * brightness,
+                        HATCH_OPEN_COLOR.b * brightness, 1f);
             } else {
                 boolean ready = phase == Phase.PLAYER_TURN && state.canRelease(BattleSide.PLAYER, index);
-                float brightness = ready ? pulse : 0.6f;
+                float brightness = ready ? pulse : HATCH_CLOSED_BRIGHTNESS;
                 shapes.setColor(PLAYER_COLOR.r * brightness, PLAYER_COLOR.g * brightness, PLAYER_COLOR.b * brightness, 1f);
             }
         } else {
-            shapes.setColor(ENEMY_COLOR.r * 0.8f, ENEMY_COLOR.g * 0.8f, ENEMY_COLOR.b * 0.8f, 1f);
+            shapes.setColor(ENEMY_COLOR.r * HATCH_ENEMY_BRIGHTNESS, ENEMY_COLOR.g * HATCH_ENEMY_BRIGHTNESS,
+                    ENEMY_COLOR.b * HATCH_ENEMY_BRIGHTNESS, 1f);
         }
         shapes.rect(left + inset, bottom + inset, cell - 2 * inset, cell - 2 * inset);
 
@@ -885,12 +1125,12 @@ public class BattleScreen extends ScreenAdapter {
         if (waiting <= 0) {
             return;
         }
-        float cx = owner == BattleSide.PLAYER ? left - cell * 0.36f : left + cell * 1.36f;
-        float top = bottom + cell * 0.82f;
-        float step = cell * 0.22f;
+        float cx = owner == BattleSide.PLAYER ? left - cell * WAITING_MARKER_INSET : left + cell * (1f + WAITING_MARKER_INSET);
+        float top = bottom + cell * WAITING_MARKER_TOP;
+        float step = cell * WAITING_MARKER_STEP;
         shapes.setColor(owner == BattleSide.PLAYER ? PLAYER_COLOR : ENEMY_COLOR);
         for (int i = 0; i < waiting; i++) {
-            shapes.circle(cx, top - i * step, cell * 0.08f, 12);
+            shapes.circle(cx, top - i * step, cell * WAITING_MARKER_RADIUS, WAITING_MARKER_SEGMENTS);
         }
     }
 
@@ -899,24 +1139,26 @@ public class BattleScreen extends ScreenAdapter {
         int entryX = BattleState.entryColumn(BattleSide.PLAYER);
         float ex = cellLeft(entryX) + cell / 2f;
         float ey = bottom + cell / 2f;
-        shapes.setColor(0.98f, 0.79f, 0.28f, 1f);
-        shapes.circle(ex, ey, cell * 0.44f, 24);
+        shapes.setColor(HATCH_OPEN_COLOR);
+        shapes.circle(ex, ey, cell * ENTRY_MARKER_RADIUS, ENTRY_MARKER_SEGMENTS);
         backdropAt(ey, tint);
         shapes.setColor(tint);
-        shapes.circle(ex, ey, cell * 0.34f, 24);
+        shapes.circle(ex, ey, cell * ENTRY_MARKER_INNER, ENTRY_MARKER_SEGMENTS);
     }
 
     private void drawControls() {
         boolean active = phase == Phase.PLAYER_TURN
                 && (hasOpenHatches() ? state.canDeploy(BattleSide.PLAYER, openHatches)
                         : state.canJump(BattleSide.PLAYER));
-        float shade = active ? 1f : 0.45f;
+        float shade = active ? 1f : CONTROL_INACTIVE;
         float half = buttonSize / 2f;
         for (JumpDirection direction : JumpDirection.values()) {
             float bx = compassX;
             float by = compassY - direction.getDy() * buttonSize;
-            shapes.setColor(0.2f * shade, 0.2f * shade, 0.28f * shade, 1f);
-            shapes.rect(bx - half * 0.92f, by - half * 0.92f, buttonSize * 0.92f, buttonSize * 0.92f);
+            shapes.setColor(BUTTON_FACE_COLOR.r * shade, BUTTON_FACE_COLOR.g * shade,
+                    BUTTON_FACE_COLOR.b * shade, 1f);
+            shapes.rect(bx - half * BUTTON_FACE, by - half * BUTTON_FACE,
+                    buttonSize * BUTTON_FACE, buttonSize * BUTTON_FACE);
 
             float dirX = direction.getDx(BattleSide.PLAYER);
             float dirY = -direction.getDy();
@@ -925,21 +1167,23 @@ public class BattleScreen extends ScreenAdapter {
             dirY /= length;
             float perpX = -dirY;
             float perpY = dirX;
-            float r = buttonSize * 0.3f;
-            shapes.setColor(0.95f * shade, 0.8f * shade, 0.35f * shade, 1f);
+            float r = buttonSize * ARROW_RADIUS;
+            shapes.setColor(ARROW_COLOR.r * shade, ARROW_COLOR.g * shade, ARROW_COLOR.b * shade, 1f);
             shapes.triangle(
                     bx + dirX * r, by + dirY * r,
-                    bx - dirX * r * 0.6f + perpX * r * 0.7f, by - dirY * r * 0.6f + perpY * r * 0.7f,
-                    bx - dirX * r * 0.6f - perpX * r * 0.7f, by - dirY * r * 0.6f - perpY * r * 0.7f);
+                    bx - dirX * r * ARROW_TAIL + perpX * r * ARROW_WING,
+                    by - dirY * r * ARROW_TAIL + perpY * r * ARROW_WING,
+                    bx - dirX * r * ARROW_TAIL - perpX * r * ARROW_WING,
+                    by - dirY * r * ARROW_TAIL - perpY * r * ARROW_WING);
         }
 
-        float fleeShade = phase == Phase.PLAYER_TURN ? 1f : 0.45f;
-        shapes.setColor(0.45f * fleeShade, 0.12f * fleeShade, 0.12f * fleeShade, 1f);
+        float fleeShade = phase == Phase.PLAYER_TURN ? 1f : CONTROL_INACTIVE;
+        shapes.setColor(FLEE_COLOR.r * fleeShade, FLEE_COLOR.g * fleeShade, FLEE_COLOR.b * fleeShade, 1f);
         shapes.rect(fleeX - fleeHalfWidth, fleeY - fleeHalfHeight, fleeHalfWidth * 2f, fleeHalfHeight * 2f);
     }
 
     private void drawTexts() {
-        float gap = lineHeight * 0.12f;
+        float gap = lineHeight * TEXT_GAP;
         float y = height - margin;
 
         font.setColor(PLAYER_COLOR);
@@ -1018,7 +1262,7 @@ public class BattleScreen extends ScreenAdapter {
     /** Draws "UCIECZKA" in the middle of the button, shrinking it only if the button is too narrow. */
     private void drawFleeLabel() {
         layout.setText(font, "UCIECZKA");
-        float maxWidth = fleeHalfWidth * 2f - lineHeight * 0.4f;
+        float maxWidth = fleeHalfWidth * 2f - lineHeight * FLEE_LABEL_PAD;
         if (layout.width > maxWidth && layout.width > 0f) {
             font.getData().setScale(textScale * (maxWidth / layout.width));
             drawCentered("UCIECZKA", fleeX, fleeY);
