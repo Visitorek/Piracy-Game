@@ -74,21 +74,13 @@ public class BattleScreen extends ScreenAdapter {
     private static final Color ROPE_COLOR = color(217, 214, 199);
     private static final Color ROPE_SHADE = color(133, 128, 117);
     private static final Color GAP_COLOR = color(10, 13, 23);
-    /** The column of hull a side's hatches sit in; the ships are drawn over the ends of the net. */
-    private static final Color HULL_COLUMN_COLOR = new Color(0.25f, 0.16f, 0.1f, 1f);
-    /** The ships themselves: a planked wooden hull, a cream sail, and the hull below the waterline. */
-    private static final Color PLANK_TAN = color(200, 152, 84);
-    private static final Color PLANK_MID = color(120, 84, 48);
-    private static final Color PLANK_LIGHT = color(145, 97, 51);
-    private static final Color PLANK_SHADOW = color(60, 35, 16);
+    /**
+     * The ship's hull: one piece of timber from the gunwale down past the waterline, the deck squares
+     * the hatches sit in, and the rigging. The ships are drawn over the ends of the net.
+     */
+    private static final Color HULL_COLOR = color(107, 66, 36);
+    /** The sail, hung on the mast above the hull. */
     private static final Color SAIL_COLOR = color(196, 186, 158);
-    private static final Color KEEL_COLOR = color(30, 44, 82);
-    /** Planking bands from the gunwale down to the waterline, with the height each one ends at. */
-    private static final Color[] PLANK_BANDS = {
-            PLANK_TAN, HULL_COLUMN_COLOR, PLANK_MID, PLANK_LIGHT, PLANK_SHADOW,
-            PLANK_MID, PLANK_LIGHT, PLANK_MID, PLANK_LIGHT, HULL_COLUMN_COLOR };
-    private static final float[] PLANK_STOPS = {
-            0f, 0.05f, 0.17f, 0.29f, 0.38f, 0.43f, 0.53f, 0.63f, 0.73f, 0.82f, 1f };
 
     /** Where the sun sits across the scene, as a fraction of the width. */
     private static final float SUN_X = 0.30f;
@@ -102,7 +94,7 @@ public class BattleScreen extends ScreenAdapter {
     private static final float HORIZON_CELLS = 2.55f;
     /** How far the rigging rises above the deck, shrunk if the sky band above the board is shorter. */
     private static final float RIGGING_CELLS = 1.15f;
-    /** How wide the hull is at the deck and at the keel, measured from its net-side edge outward. */
+    /** How wide the hull is at the deck and at the keel, with both sides leaning in by the same amount. */
     private static final float HULL_TOP_CELLS = 2.14f;
     private static final float HULL_KEEL_CELLS = 1.62f;
     /** The deck sits this far above the top of the board, and the keel this far below its bottom. */
@@ -687,7 +679,7 @@ public class BattleScreen extends ScreenAdapter {
         // ends of the strands, right where the rope is lashed to the ship.
         drawNet();
         // The ships go over the net as well, so the strand ends land on the hull; the deck squares then
-        // go over the hull, leaving the planking and the rigging visible outside the board.
+        // go over the hull, leaving the hull and the rigging visible outside the board.
         drawShips();
 
         for (int x = 0; x < BattleState.WIDTH; x++) {
@@ -698,7 +690,7 @@ public class BattleScreen extends ScreenAdapter {
             float left = cellLeft(x) + shipShift(x == hatchColumnPlayer ? BattleSide.PLAYER : BattleSide.ENEMY);
             for (int y = 0; y < BattleState.HEIGHT; y++) {
                 float bottom = cellBottom(y);
-                shapes.setColor(HULL_COLUMN_COLOR);
+                shapes.setColor(HULL_COLOR);
                 shapes.rect(left, bottom, cell, cell);
                 drawHatch(x, y, left, bottom, pulse);
             }
@@ -721,8 +713,9 @@ public class BattleScreen extends ScreenAdapter {
     }
 
     /**
-     * The two ships the net is strung between. Each one is a planked hull running from just above the
-     * top of the board down past its bottom into the water, with the mast, sail and pennant above it.
+     * The two ships the net is strung between. Each one is a wooden hull, symmetric about its own
+     * centre, running from just above the top of the board down past its bottom into the water, with
+     * the mast, sail and pennant above it.
      */
     private void drawShips() {
         drawShip(true);
@@ -743,17 +736,15 @@ public class BattleScreen extends ScreenAdapter {
         // than reaching into the log line underneath it.
         float keelY = Math.max(sceneBottom + cell * 0.02f, boardY - cell * KEEL_DROP_CELLS);
         float farDeck = near + out * span;
-        float farKeel = near + out * span * (HULL_KEEL_CELLS / HULL_TOP_CELLS);
-        // The outer side leans inward as it goes down, so a band's far edge depends on its height.
-        float slope = (farKeel - farDeck) / (keelY - deckY);
+        // The sides run straight down to the water and then lean in by the same amount on either side,
+        // so the hull is symmetric about its own centre.
+        float keelInset = span * (1f - HULL_KEEL_CELLS / HULL_TOP_CELLS) / 2f;
 
-        for (int i = 0; i < PLANK_BANDS.length; i++) {
-            float yTop = deckY - (deckY - boardY) * PLANK_STOPS[i];
-            float yBottom = deckY - (deckY - boardY) * PLANK_STOPS[i + 1];
-            hullBand(near, farDeck + slope * (yTop - deckY), farDeck + slope * (yBottom - deckY),
-                    yTop, yBottom, PLANK_BANDS[i]);
-        }
-        hullBand(near, farDeck + slope * (boardY - deckY), farKeel, boardY, keelY, KEEL_COLOR);
+        // The hull is a single piece of timber, with neither planking bands nor a waterline stripe to
+        // break it up.
+        hullBand(near, near, farDeck, farDeck, deckY, boardY, HULL_COLOR);
+        hullBand(near, near + out * keelInset, farDeck, farDeck - out * keelInset,
+                boardY, keelY, HULL_COLOR);
 
         // Rigging: a mast with a square sail hung on it and the side's pennant at the top. It is sized to
         // the sky left above the deck, so on a short screen the mast shortens instead of reaching the text.
@@ -766,7 +757,7 @@ public class BattleScreen extends ScreenAdapter {
         drawSailPanel(mastX, half, deckY + rig * 0.46f, deckY + rig * 0.76f);
 
         // The spar the upper sail hangs from, then the mast splitting both sails, then the pennant.
-        shapes.setColor(HULL_COLUMN_COLOR);
+        shapes.setColor(HULL_COLOR);
         shapes.rect(mastX - half - cell * 0.02f, deckY + rig * 0.40f,
                 2f * half + cell * 0.04f, Math.max(1f, rig * 0.09f));
         shapes.rect(mastX - cell * 0.022f, deckY, cell * 0.044f, rig * 0.94f);
@@ -776,11 +767,12 @@ public class BattleScreen extends ScreenAdapter {
                 mastX - out * half, deckY + rig * 0.89f);
     }
 
-    /** One plank of the hull: a band between two heights, with the width of its far edge given. */
-    private void hullBand(float near, float farTop, float farBottom, float yTop, float yBottom, Color shade) {
+    /** One slice of the hull: a band between two heights, with both edges given at each height. */
+    private void hullBand(float nearTop, float nearBottom, float farTop, float farBottom,
+            float yTop, float yBottom, Color shade) {
         shapes.setColor(shade);
-        shapes.triangle(near, yTop, farTop, yTop, farBottom, yBottom);
-        shapes.triangle(near, yTop, farBottom, yBottom, near, yBottom);
+        shapes.triangle(nearTop, yTop, farTop, yTop, farBottom, yBottom);
+        shapes.triangle(nearTop, yTop, farBottom, yBottom, nearBottom, yBottom);
     }
 
     /** A square sail hung on the mast, drawn as the trapezoid its left and right halves make. */
