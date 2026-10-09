@@ -92,16 +92,24 @@ public class BattleScreen extends ScreenAdapter {
     /** Shares of the dial radius: the rim ring and the GO button in the middle. */
     private static final float COMPASS_RIM_RING = 0.055f;
     private static final float COMPASS_GO_RADIUS = 0.34f;
-    /** A direction mark sits this far out and is this big; the needle reaches this far, and is this wide. */
-    private static final float COMPASS_MARK_RING = 0.50f;
-    private static final float COMPASS_MARK_RADIUS = 0.085f;
+    /** Each direction arrow sits outside the rim: a short stem off the dial's edge and a head, so the
+     * whole compass reaches this many dial radii from the centre. The stem starts on the rim itself,
+     * so no sliver of sea opens up between the dial and the arrows. */
+    private static final float COMPASS_ARROW_INNER = 1f;
+    private static final float COMPASS_ARROW_HEAD = 1.10f;
+    private static final float COMPASS_ARROW_TIP = 1.28f;
+    /** Half the width of an arrow's stem, and of the base of its head. */
+    private static final float COMPASS_ARROW_STEM = 0.16f;
+    private static final float COMPASS_ARROW_WING = 0.21f;
+    /** The needle is a flat ended bar: it reaches this far, and it is exactly as wide as an arrow's
+     * stem, so the bar and the arrow beyond the rim read as one line. */
     private static final float NEEDLE_LENGTH = 0.86f;
-    private static final float NEEDLE_HALF_WIDTH = 0.11f;
+    private static final float NEEDLE_HALF_WIDTH = COMPASS_ARROW_STEM;
     /** The cardinal letters sit this far out, and every compass label is this tall a share of the
      * dial radius, so the letters keep their place on the dial at any size. */
     private static final float COMPASS_LETTER_RING = 0.78f;
     private static final float COMPASS_LABEL_SIZE = 0.28f;
-    /** How many triangles the dial, and each small mark, are drawn with. */
+    /** How many triangles the dial, and the round GO plate, are drawn with. */
     private static final int DIAL_SEGMENTS = 48;
     private static final int MARK_SEGMENTS = 12;
     /** The flee button: half its width and half its height are this many text lines. It sits in the
@@ -538,13 +546,15 @@ public class BattleScreen extends ScreenAdapter {
 
         // The compass dial stands in the middle of the sea between the enemy hull and the right
         // margin, so it never sits over a ship, and it is as big as that strip of sea and the room
-        // left between the top text band and the flee button allow.
+        // left between the top text band and the flee button allow. The strip has to hold the whole
+        // compass, arrows included, hence the division by the reach of an arrow.
         float enemyFar = hullNear(false) + hullSpan(false);
         compassX = (enemyFar + width - margin) / 2f;
         compassY = boardY + cell * BattleState.HEIGHT / 2f;
         float freeHalf = (width - margin - enemyFar) / 2f;
         compassRadius = Math.min(cell * COMPASS_RADIUS_CELLS, Math.min(freeHalf,
-                Math.min(fleeY - fleeHalfHeight - compassY, compassY - (margin + topBand))));
+                Math.min(fleeY - fleeHalfHeight - compassY, compassY - (margin + topBand)))
+                / COMPASS_ARROW_TIP);
     }
 
     @Override
@@ -825,6 +835,15 @@ public class BattleScreen extends ScreenAdapter {
         batch.begin();
         drawTexts();
         batch.end();
+
+        // The needle crosses the cardinal letters, so the part of it past the GO button is painted a
+        // second time, on top of them. The button and its label sit inside that radius and stay clear.
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        float needleShade = controlShade();
+        shapes.setColor(ARROW_COLOR.r * needleShade, ARROW_COLOR.g * needleShade,
+                ARROW_COLOR.b * needleShade, 1f);
+        drawNeedle(COMPASS_GO_RADIUS);
+        shapes.end();
     }
 
     /**
@@ -1270,11 +1289,16 @@ public class BattleScreen extends ScreenAdapter {
         shapes.circle(ex, ey, cell * ENTRY_MARKER_INNER, ENTRY_MARKER_SEGMENTS);
     }
 
-    private void drawControls() {
+    /** The brightness of the steering controls: dimmed whenever the player may not steer. */
+    private float controlShade() {
         boolean active = phase == Phase.PLAYER_TURN
                 && (hasOpenHatches() ? state.canDeploy(BattleSide.PLAYER, openHatches)
                         : state.canJump(BattleSide.PLAYER));
-        float shade = active ? 1f : CONTROL_INACTIVE;
+        return active ? 1f : CONTROL_INACTIVE;
+    }
+
+    private void drawControls() {
+        float shade = controlShade();
         float r = compassRadius;
         shapes.setColor(BUTTON_FACE_COLOR.r * shade, BUTTON_FACE_COLOR.g * shade,
                 BUTTON_FACE_COLOR.b * shade, 1f);
@@ -1285,35 +1309,53 @@ public class BattleScreen extends ScreenAdapter {
                 BUTTON_FACE_COLOR.b * shade, 1f);
         shapes.circle(compassX, compassY, r * (1f - COMPASS_RIM_RING), DIAL_SEGMENTS);
 
-        // The three marks on the dial are exactly the three moves the needle may point at. They sit
-        // well inside the rim, clear of the cardinal letters drawn around them.
+        // The three arrows outside the rim are exactly the three moves the needle may point at. They
+        // stay off the dial, so the cardinal letters drawn inside it keep the dial to themselves.
         shapes.setColor(ARROW_COLOR.r * shade, ARROW_COLOR.g * shade, ARROW_COLOR.b * shade, 1f);
         for (JumpDirection direction : JumpDirection.values()) {
             float markX = direction.getDx(BattleSide.PLAYER);
             float markY = -direction.getDy();
             float length = (float) Math.sqrt(markX * markX + markY * markY);
-            shapes.circle(compassX + markX / length * r * COMPASS_MARK_RING,
-                    compassY + markY / length * r * COMPASS_MARK_RING,
-                    r * COMPASS_MARK_RADIUS, MARK_SEGMENTS);
+            markX /= length;
+            markY /= length;
+            float perpX = -markY;
+            float perpY = markX;
+            shapes.rectLine(
+                    compassX + markX * r * COMPASS_ARROW_INNER, compassY + markY * r * COMPASS_ARROW_INNER,
+                    compassX + markX * r * COMPASS_ARROW_HEAD, compassY + markY * r * COMPASS_ARROW_HEAD,
+                    r * COMPASS_ARROW_STEM * 2f);
+            shapes.triangle(
+                    compassX + markX * r * COMPASS_ARROW_TIP, compassY + markY * r * COMPASS_ARROW_TIP,
+                    compassX + markX * r * COMPASS_ARROW_HEAD + perpX * r * COMPASS_ARROW_WING,
+                    compassY + markY * r * COMPASS_ARROW_HEAD + perpY * r * COMPASS_ARROW_WING,
+                    compassX + markX * r * COMPASS_ARROW_HEAD - perpX * r * COMPASS_ARROW_WING,
+                    compassY + markY * r * COMPASS_ARROW_HEAD - perpY * r * COMPASS_ARROW_WING);
         }
 
-        float dirX = aimDirection.getDx(BattleSide.PLAYER);
-        float dirY = -aimDirection.getDy();
-        float length = (float) Math.sqrt(dirX * dirX + dirY * dirY);
-        dirX /= length;
-        dirY /= length;
-        float perpX = -dirY;
-        float perpY = dirX;
-        shapes.triangle(
-                compassX + dirX * r * NEEDLE_LENGTH, compassY + dirY * r * NEEDLE_LENGTH,
-                compassX + perpX * r * NEEDLE_HALF_WIDTH, compassY + perpY * r * NEEDLE_HALF_WIDTH,
-                compassX - perpX * r * NEEDLE_HALF_WIDTH, compassY - perpY * r * NEEDLE_HALF_WIDTH);
+        drawNeedle(0f);
         // The GO button sits over the foot of the needle and is the whole tap target for the move.
         shapes.circle(compassX, compassY, r * COMPASS_GO_RADIUS, MARK_SEGMENTS);
 
         float fleeShade = phase == Phase.PLAYER_TURN ? 1f : CONTROL_INACTIVE;
         shapes.setColor(FLEE_COLOR.r * fleeShade, FLEE_COLOR.g * fleeShade, FLEE_COLOR.b * fleeShade, 1f);
         shapes.rect(fleeX - fleeHalfWidth, fleeY - fleeHalfHeight, fleeHalfWidth * 2f, fleeHalfHeight * 2f);
+    }
+
+    /**
+     * The needle, a bar of one width from {@code fromShare} of the dial radius out to its tip, so it
+     * ends flat instead of in a point. It is drawn twice per frame: with the dial, and once more after
+     * the cardinal letters, which it crosses.
+     */
+    private void drawNeedle(float fromShare) {
+        float dirX = aimDirection.getDx(BattleSide.PLAYER);
+        float dirY = -aimDirection.getDy();
+        float length = (float) Math.sqrt(dirX * dirX + dirY * dirY);
+        dirX /= length;
+        dirY /= length;
+        shapes.rectLine(
+                compassX + dirX * compassRadius * fromShare, compassY + dirY * compassRadius * fromShare,
+                compassX + dirX * compassRadius * NEEDLE_LENGTH, compassY + dirY * compassRadius * NEEDLE_LENGTH,
+                compassRadius * NEEDLE_HALF_WIDTH * 2f);
     }
 
     private void drawTexts() {
