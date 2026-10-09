@@ -21,7 +21,7 @@ kola, elipsy) plus jeden `SpriteBatch` z domyslna czcionka `BitmapFont` do napis
 dwie rzeczy:
 
 * kazdy element jest sterowany parametrem w kodzie, nie atrybutem w pliku danych;
-* nie ma tu warstw Scene2D - napisy, strzalki i luki sa obslugiwane wlasnym kodem i wlasnym
+* nie ma tu warstw Scene2D - napisy, kompas i luki sa obslugiwane wlasnym kodem i wlasnym
   testowaniem dotyku (`handleInput`), a nie `Actor`ami.
 
 Do ekranu prowadzi walka: `CorsairGame` otwiera `BattleScreen` z `BattleState.create(...)` oraz
@@ -57,7 +57,7 @@ ekranem powrotu (`returnScreen`). Wyjscie z ekranu idzie przez `BattleResult` (p
    nie skakal w trakcie bitwy:
    * `topBand = playerLine + enemyLine + max(turnLine, WORST_TURN_LINE) + hintLine + 3 * TEXT_GAP * lineHeight`
    * `bottomBand = max(lineHeight * LOG_BAND_LINES, measure(LOG_RESERVE) + lineHeight * LOG_BAND_PAD)`
-5. `arrowZone = max(width * ARROW_ZONE_WIDTH, lineHeight * ARROW_ZONE_LINES)` - kolumna strzalek po
+5. `arrowZone = max(width * ARROW_ZONE_WIDTH, lineHeight * ARROW_ZONE_LINES)` - kolumna sterowania po
    prawej stronie planszy.
 6. `usableW = width - 2 * margin - arrowZone`, `usableH = height - 2 * margin - topBand - bottomBand`.
 7. Skala sceny. Pudelko sceny w oczkach to `span = WIDTH + 2 * SHIP_ROOM` (8 + 2.2 = 10.2),
@@ -82,15 +82,20 @@ ekranem powrotu (`returnScreen`). Wyjscie z ekranu idzie przez `BattleResult` (p
     miejsce niebu i morzu, a nie przesuwa horyzontu.
 11. Prawa kolumna. `rightWidth` mierzy sie **od prawej krawedzi planszy do `width - margin`**, wiec
     cala rezerwa z punktu 7 trafia wlasnie do panelu: `compassX = prawa krawedz planszy + rightWidth / 2`,
-    `compassY = srodek planszy`,
-    `buttonSize = min(rightWidth / COMPASS_BUTTON_WIDTH, usableH * COMPASS_BUTTON_HEIGHT)`.
+    `compassY = srodek planszy`. Promien tarczy kompasu to
+    `compassRadius = min(cell * COMPASS_RADIUS_CELLS, min(rightWidth / 2, wolny pas / 2))`, gdzie
+    `wolny pas = (fleeY - fleeHalfHeight) - (margin + topBand)`, czyli odstep miedzy pasem napisow
+    a plytka ucieczki. Na wszystkich osmiu badanych rozdzielczosciach ograniczeniem jest
+    `cell * COMPASS_RADIUS_CELLS`, wiec tarcza ma srednice `3.2` oczka i nigdy nie wchodzi na plansze
+    ani na plytke ucieczki.
 12. **Przycisk ucieczki nie nalezy do kolumny kompasu.** To mala plytka w prawym gornym rogu
     obszaru gry: `fleeHalfWidth = min(rightWidth / 2, lineHeight * FLEE_HALF_WIDTH_LINES)`,
     `fleeHalfHeight = lineHeight * FLEE_HALF_HEIGHT_LINES`,
     `fleeX = width - margin - fleeHalfWidth`,
     `fleeY = height - margin - topBand - lineHeight * FLEE_CORNER_GAP_LINES - fleeHalfHeight`.
     Dzieki `min` z polowa panelu plytka nigdy nie wchodzi na plansze, a dzieki `topBand` w wzorze
-    nie zaslania napisow (patrz sekcja 5.10).
+    nie zaslania napisow (patrz sekcja 5.10). Liczy sie **przed** kompasem, bo jego promien
+    korzysta z `fleeY` i `fleeHalfHeight`.
 
 ## 4. Kolejnosc rysowania
 
@@ -101,7 +106,7 @@ shapes.begin(Filled)
                     -> drawClouds -> drawWaves -> drawSunGlitter -> drawFoam
   drawBoard()       drawNet -> drawShips -> kwadraty pokladu + drawHatch -> kola zalogi
   drawSceneMask()   maska sceny: tlo od sceneTop do gory ekranu
-  drawControls()    strzalki (kompas) -> przycisk ucieczki
+  drawControls()    kompas (tarcza, obwodka, znaczki, igla, piasta) -> przycisk ucieczki
 shapes.end()
 batch.begin()
   drawTexts()       linia gracza, linia wroga, linia tury, podpowiedz, log (dolem), "UCIECZKA"
@@ -116,11 +121,13 @@ Kolejnosc w `drawBoard` nie jest przypadkowa:
   widoczne poza obrysem planszy;
 * zaloga idzie na koncu, po lukach.
 
-`drawSceneMask()` idzie zaraz po `drawBoard()`, czyli **po** takielunku, a **przed** strzalkami
+`drawSceneMask()` idzie zaraz po `drawBoard()`, czyli **po** takielunku, a **przed** kompasem
 i napisami. Zamalowuje tlem (`BACKDROP`) wszystko od `sceneTop` do gornej krawedzi ekranu, wiec
 takielunek - rysowany wyzej, niz siega niebo - jest ucinany plasko na gornej krawedzi sceny.
 Niebo konczy sie dokladnie na `sceneTop`, wiec maska nie przykrywa niczego poza czystym tlem;
-strzalki, przycisk ucieczki i napisy leza ponizej tej linii albo ida juz innym potokiem (`batch`).
+kompas, przycisk ucieczki i napisy leza ponizej tej linii albo ida juz innym potokiem (`batch`).
+Kompas idzie **po** statkach, wiec jego nieprzezroczysta tarcza przykrywa statek, ktory pod nia
+wpada (na 400x800 i 1080x1920 siega ona kadluba wroga).
 
 ## 5. Katalog parametrow
 
@@ -141,10 +148,9 @@ Wartosci w nawiasach to stan obecny. "Jedn." mowi, jak czytac liczbe: `cell` = u
 | `WORST_TURN_LINE` | tekst | - | najdluzszy wariant linii tury (paso gory liczy sie dla niego) |
 | `LOG_RESERVE` | tekst | - | najdluzszy wariant logu (paso dolu liczy sie dla niego) |
 | `LOG_BAND_LINES` / `LOG_BAND_PAD` | linie | 1.6 / 0.4 | minimalna wysokosc pasa logu i oddech nad logiem |
-| `ARROW_ZONE_WIDTH` / `ARROW_ZONE_LINES` | 0..1 / linie | 0.14 / 2.4 | szerokosc kolumny strzalek |
+| `ARROW_ZONE_WIDTH` / `ARROW_ZONE_LINES` | 0..1 / linie | 0.14 / 2.4 | szerokosc kolumny sterowania |
 | `PANEL_RESERVE_CELLS` | cell | 1 | ile oczek pudelka sceny oddac prawemu panelowi; plansza przesuwa sie w lewo zamiast sciskac sterowanie (oddawane, gdy `cell` spadlby pod `MIN_CELL`) |
-| `COMPASS_BUTTON_WIDTH` | - | 3.4 | przycisk = panel / to |
-| `COMPASS_BUTTON_HEIGHT` | 0..1 | 0.24 | ... ale nie wyzszy niz ta czesc wolnej wysokosci |
+| `COMPASS_RADIUS_CELLS` | cell | 1.6 | promien tarczy kompasu; `min` z polowa panelu i polowa wolnego pasa |
 | `FLEE_HALF_WIDTH_LINES` | linie | 3 | polowa szerokosci przycisku ucieczki; nigdy wiecej niz polowa panelu (`rightWidth / 2`) |
 | `FLEE_HALF_HEIGHT_LINES` | linie | 1.1 | polowa wysokosci przycisku ucieczki |
 | `FLEE_CORNER_GAP_LINES` | linie | 0.5 | oddech miedzy pasem tekstu a przyciskiem ucieczki |
@@ -396,15 +402,38 @@ na wezle. Poziome liny przechodza przez szczeline `SHIP_GAP_CELLS` i wchodza pod
 
 | Parametr | Wartosc | Co robi |
 |---|---|---|
-| `BUTTON_FACE` | 0.92 | plyta strzalki jako udzial `buttonSize` |
-| `BUTTON_FACE_COLOR` | 0.2, 0.2, 0.28 | kolor plyty |
-| `ARROW_RADIUS` / `ARROW_TAIL` / `ARROW_WING` | 0.3 / 0.6 / 0.7 | trojkat strzalki wzgledem promienia |
-| `ARROW_COLOR` | 0.95, 0.8, 0.35 | kolor strzalki |
+| `COMPASS_RADIUS_CELLS` | 1.6 cell | promien tarczy kompasu (srednica 3.2 oczka); `min` z polowa panelu i polowa wolnego pasa |
+| `COMPASS_RIM_RING` | 0.055 | grubosc obwodki jako udzial promienia |
+| `COMPASS_HUB_RADIUS` | 0.14 | promien piasty (srodka) jako udzial promienia |
+| `COMPASS_HUB_HIT` | 0.34 | jak daleko od srodka liczy sie dotkniecie piasty |
+| `COMPASS_MARK_RING` / `COMPASS_MARK_RADIUS` | 0.82 / 0.085 | gdzie lezy i jak duzy jest znaczek na obrzezu |
+| `NEEDLE_LENGTH` / `NEEDLE_HALF_WIDTH` | 0.86 / 0.11 | igla wzgledem promienia |
+| `DIAL_SEGMENTS` / `MARK_SEGMENTS` | 48 / 12 | ile trojkatow maja kola tarczy i znaczkow |
+| `BUTTON_FACE_COLOR` | 0.2, 0.2, 0.28 | kolor tarczy (i tla pod obwodka) |
+| `ARROW_COLOR` | 0.95, 0.8, 0.35 | kolor obwodki, znaczkow, igly i piasty |
 | `CONTROL_INACTIVE` | 0.45 | o tyle przygaszone jest wszystko, co teraz nie dziala |
 | `FLEE_LABEL_PAD` | 0.4 linie | oddech wokol napisu "UCIECZKA" |
 | `FLEE_COLOR` | 0.45, 0.12, 0.12 | ciemna czerwien przycisku ucieczki |
 | `FLEE_HALF_WIDTH_LINES` / `FLEE_HALF_HEIGHT_LINES` | 3 / 1.1 linie | rozmiar plytki ucieczki (cala plytka = 6 x 2.2 linii); szerokosc ogranicza polowa panelu, zeby plytka nie weszla na plansze |
 | `FLEE_CORNER_GAP_LINES` | 0.5 linie | oddech miedzy pasem tekstu a plytka |
+
+**Kompas** (`drawControls`) rysuje w kolejnosci: tarcza (`circle` w `BUTTON_FACE_COLOR`), obwodka
+(`circle` w `ARROW_COLOR` i na nim mniejszy `circle` w `BUTTON_FACE_COLOR`), trzy znaczki na obrzezu
+w odleglosci `COMPASS_MARK_RING`, igla (trojkat od piasty do `NEEDLE_LENGTH`) i piasta. Trzy znaczki
+to dokladnie trzy dozwolone kierunki igly: prawo, prawa gora, prawy dol (`FORWARD`, `FORWARD_UP`,
+`FORWARD_DOWN`).
+
+**Obsluga dotkniec** (`handleInput`), po tescie plytki ucieczki, a przed testem lukow:
+
+* dotkniecie w odleglosci `<= compassRadius * COMPASS_HUB_HIT` od srodka **wykonuje ruch** w kierunku,
+  w ktory wskazuje igla (`aimDirection`) - `playerArrow(aimDirection)`;
+* dotkniecie gdziekolwiek indziej w tarczy (`<= compassRadius`) tylko **ustawia igle**:
+  `nearestDirection` bierze kat `atan2` i przyporzadkowuje go najblizszemu z trzech kierunkow
+  (granice na `+-22.5` stopnia);
+* dotkniecie poza tarcza idzie dalej, do lukow.
+
+`aimDirection` startuje jako `FORWARD` i **przezywa miedzy turami** - igla zostaje tam, gdzie ja
+ustawiono.
 
 Plytka ucieczki siedzi w prawym gornym rogu **obszaru gry**, wyrownana do `width - margin` i
 zaczepiona pod pasem tekstu (`topBand`), a nie pod kompasem. Na waskich ekranach panel boczny jest
@@ -432,8 +461,8 @@ wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 d
 | Slupek oczekujacych | `drawHatch` | jedno male kolo na pirata, od gory luku w dol |
 | Znacznik wejscia | `drawEntryMarker` | zloty pierscien z tlem w srodku |
 | Zaloga na siatce | `drawBoard` | cien + kolo w kolorze strony |
-| Strzalki | `drawControls` | plyta + trojkat na kazdy `JumpDirection` |
-| Prawy panel (kompas) | `drawControls` | prawa krawedz planszy + cala rezerwa z `PANEL_RESERVE_CELLS`, zmierzona do `width - margin` |
+| Kompas | `drawControls` | tarcza + obwodka + 3 znaczki na obrzezu (trzy mozliwe kierunki igly) + igla + piasta |
+| Prawy panel (kompas) | `computeGeometry` / `drawControls` | prawa krawedz planszy + cala rezerwa z `PANEL_RESERVE_CELLS`, zmierzona do `width - margin`; tarcza wysrodkowana na `compassX`/`compassY`, promien `COMPASS_RADIUS_CELLS` oczek |
 | Przycisk ucieczki | `drawControls` / `drawFleeLabel` | plytka `FLEE_COLOR` w prawym gornym rogu obszaru gry, tuz pod pasem tekstu + napis "UCIECZKA" (zmniejszany, gdy nie miesci sie w plytce) |
 | Napisy | `drawTexts` | 4 bloki tekstu + log + etykieta ucieczki |
 
@@ -462,7 +491,7 @@ wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 d
 | Linia tury | `Tura N/MAX - <status>` (zlota, gdy otwarte luki lub koniec) |
 | Podpowiedz | `otwarte luki: N (tap = otworz/zamknij)` |
 | Log | `Ty: ...` / `Wrog: ...` + `wyprowadzenie N pir.` / `skok <kierunek>` / `, pokonani: N` / `, wpadli: N` / `, zablokowane luki: N` / `, wycofani: N` |
-| Komunikaty | `Luk N jest zniszczony.`, `Luk N jest pusty.`, `Luk N zamkniety (czeka N pir.).`, `Luk N otwarty - strzalka wyprowadzi zaloge.`, `Luk N otwarty, ale pole wejsciowe zajete - odsun pirata.` |
+| Komunikaty | `Luk N jest zniszczony.`, `Luk N jest pusty.`, `Luk N zamkniety (czeka N pir.).`, `Luk N otwarty - kompas wyprowadzi zaloge.`, `Luk N otwarty, ale pole wejsciowe zajete - odsun pirata.` |
 | Statusy | `Twoja tura: wyprowadzenie`, `Twoja tura: skok`, `Tura wroga...`, `ZWYCIESTWO!`, `PORAZKA`, `REMIS`, `UCIECZKA` |
 | Kierunki | `naprzod`, `ukos w gore`, `ukos w dol` |
 | Przycisk | `UCIECZKA` |
@@ -494,7 +523,7 @@ wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 d
 | Mniej lub wiecej blyskow slonca | `GLITTER_COUNT`, `GLITTER_ALPHA` |
 | Wiecej miejsca na tekst | `LOG_BAND_LINES`, `TEXT_GAP`, `MARGIN_*` |
 | Wiecej miejsca na sterowanie po prawej | `PANEL_RESERVE_CELLS` (1 = jedno oczko; plansza idzie w lewo, a panel rosnie o ta sama szerokosc) |
-| Wieksze strzalki | `COMPASS_BUTTON_WIDTH`, `COMPASS_BUTTON_HEIGHT`, `ARROW_ZONE_*` |
+| Wiekszy kompas | `COMPASS_RADIUS_CELLS`, `ARROW_ZONE_*` |
 | Inny przycisk ucieczki | `FLEE_*` |
 | Inne kolory stron | `PLAYER_COLOR`, `ENEMY_COLOR` |
 
@@ -572,7 +601,8 @@ Inne tryby (pojedynczo) wybiera sie wlasciwoscia `-PvizMain=`, np. `-PvizMain=vi
   mierzy kadlub i maszt. Zgodnosc z liczbami wyliczonymi oznacza, ze i wzory, i rysowanie sa
   w porzadku. Roznica kilku pikseli na krawedziach (antyaliasing i zaokraglenie do piksela) jest
   normalna, ale pomiar przyciety krawedzia ekranu jest oznaczany jako `UWAGA`;
-* **sterowanie** - polozenie i rozmiar przyciskow w prawej czesci ekranu.
+* **sterowanie** - `compassX`, `compassY`, `compassRadius` oraz polowa szerokosci i polowa wysokosci
+  plytki ucieczki (`fleeX`, `fleeY`, `fleeHalfWidth`, `fleeHalfHeight`).
 
 Zasady, ktorych trzyma sie narzedzie:
 

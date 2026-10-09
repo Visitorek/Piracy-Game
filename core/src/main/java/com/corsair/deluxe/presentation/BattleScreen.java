@@ -29,8 +29,9 @@ import java.util.Random;
 
 /**
  * Turn-based boarding skirmish in the spirit of Piracy Deluxe: tap the hatches in your column (left)
- * to open them, then press an arrow to muster one pirate out of every open hatch - the hatches close
- * again by themselves - or, with all hatches closed, to make the whole crew on the net jump.
+ * to open them, then tap the middle of the compass to muster one pirate out of every open hatch - the
+ * hatches close again by themselves - or, with all hatches closed, to make the whole crew on the net
+ * jump. The compass needle points the way; tapping the dial sets it.
  * Aim: disable the enemy hatches (right column).
  */
 public class BattleScreen extends ScreenAdapter {
@@ -81,14 +82,25 @@ public class BattleScreen extends ScreenAdapter {
     /** The bottom band is at least this many lines tall, plus this much air above the log line. */
     private static final float LOG_BAND_LINES = 1.6f;
     private static final float LOG_BAND_PAD = 0.4f;
-    /** The column of arrows beside the board takes this share of the width, and this many lines. */
+    /** The column of controls beside the board takes this share of the width, and this many lines. */
     private static final float ARROW_ZONE_WIDTH = 0.14f;
     private static final float ARROW_ZONE_LINES = 2.4f;
     /** The side panel takes this many cells of the scene box, so the controls stop crowding the board. */
     private static final float PANEL_RESERVE_CELLS = 1f;
-    /** An arrow button is this share of the side panel wide, and this share of the free height tall. */
-    private static final float COMPASS_BUTTON_WIDTH = 3.4f;
-    private static final float COMPASS_BUTTON_HEIGHT = 0.24f;
+    /** The compass dial's radius is this many cells, capped by the panel and by the free height. */
+    private static final float COMPASS_RADIUS_CELLS = 1.6f;
+    /** Shares of the dial radius: the rim ring, the hub, and how far from the centre the hub is tappable. */
+    private static final float COMPASS_RIM_RING = 0.055f;
+    private static final float COMPASS_HUB_RADIUS = 0.14f;
+    private static final float COMPASS_HUB_HIT = 0.34f;
+    /** A rim mark sits this far out and is this big; the needle reaches this far, and is this wide. */
+    private static final float COMPASS_MARK_RING = 0.82f;
+    private static final float COMPASS_MARK_RADIUS = 0.085f;
+    private static final float NEEDLE_LENGTH = 0.86f;
+    private static final float NEEDLE_HALF_WIDTH = 0.11f;
+    /** How many triangles the dial, and each small mark, are drawn with. */
+    private static final int DIAL_SEGMENTS = 48;
+    private static final int MARK_SEGMENTS = 12;
     /** The flee button: half its width and half its height are this many text lines. It sits in the
      * top right corner of the scene, so it never grows wider than the side panel beside the board. */
     private static final float FLEE_HALF_WIDTH_LINES = 3f;
@@ -349,12 +361,8 @@ public class BattleScreen extends ScreenAdapter {
 
     // --- 10. Controls ----------------------------------------------------------------------------
 
-    /** An arrow button: the plate behind it, the arrow on it, and how dim it is when it cannot act. */
-    private static final float BUTTON_FACE = 0.92f;
+    /** The compass: the dial face, and the rim, marks and needle drawn on it. */
     private static final Color BUTTON_FACE_COLOR = new Color(0.2f, 0.2f, 0.28f, 1f);
-    private static final float ARROW_RADIUS = 0.3f;
-    private static final float ARROW_TAIL = 0.6f;
-    private static final float ARROW_WING = 0.7f;
     private static final Color ARROW_COLOR = new Color(0.95f, 0.8f, 0.35f, 1f);
     private static final float CONTROL_INACTIVE = 0.45f;
     /** Padding left and right of "UCIECZKA", as a fraction of the line height. */
@@ -384,7 +392,7 @@ public class BattleScreen extends ScreenAdapter {
 
     private Phase phase = Phase.PLAYER_TURN;
     private BattleOutcome outcome = BattleOutcome.ONGOING;
-    private String message = "Tapnij luk, aby go otworzyc; strzalka wyprowadza zaloge.";
+    private String message = "Tapnij luk, aby go otworzyc; kompas wyprowadza zaloge.";
     private float phaseTime;
     private float elapsed;
     private boolean leaving;
@@ -410,7 +418,9 @@ public class BattleScreen extends ScreenAdapter {
     private final Random seaRandom = new Random(SEA_SEED);
     private float compassX;
     private float compassY;
-    private float buttonSize;
+    private float compassRadius;
+    /** Where the compass needle points: the move that tapping the hub will make. */
+    private JumpDirection aimDirection = JumpDirection.FORWARD;
     private float fleeX;
     private float fleeY;
     private float fleeHalfWidth;
@@ -513,9 +523,6 @@ public class BattleScreen extends ScreenAdapter {
 
         float rightEdge = boardX + boardWidth;
         float rightWidth = width - margin - rightEdge;
-        compassX = rightEdge + rightWidth / 2f;
-        compassY = boardY + cell * BattleState.HEIGHT / 2f;
-        buttonSize = Math.min(rightWidth / COMPASS_BUTTON_WIDTH, usableH * COMPASS_BUTTON_HEIGHT);
 
         // The flee button is a small plate hugging the label, pinned in the top right corner of the
         // scene, just under the text band; the panel beside the board caps how wide it may grow.
@@ -523,6 +530,13 @@ public class BattleScreen extends ScreenAdapter {
         fleeHalfHeight = lineHeight * FLEE_HALF_HEIGHT_LINES;
         fleeX = width - margin - fleeHalfWidth;
         fleeY = height - margin - topBand - lineHeight * FLEE_CORNER_GAP_LINES - fleeHalfHeight;
+
+        // The compass dial sits in the middle of the panel, as big as the panel and the strip left
+        // between the text band and the flee button allow.
+        compassX = rightEdge + rightWidth / 2f;
+        compassY = boardY + cell * BattleState.HEIGHT / 2f;
+        float freeStrip = fleeY - fleeHalfHeight - (margin + topBand);
+        compassRadius = Math.min(cell * COMPASS_RADIUS_CELLS, Math.min(rightWidth / 2f, freeStrip / 2f));
     }
 
     @Override
@@ -566,13 +580,16 @@ public class BattleScreen extends ScreenAdapter {
             return;
         }
 
-        for (JumpDirection direction : JumpDirection.values()) {
-            float buttonX = compassX;
-            float buttonY = compassY - direction.getDy() * buttonSize;
-            if (Math.abs(touchX - buttonX) < buttonSize / 2f && Math.abs(touchY - buttonY) < buttonSize / 2f) {
-                playerArrow(direction);
-                return;
-            }
+        float dialX = touchX - compassX;
+        float dialY = touchY - compassY;
+        float dialDistance = (float) Math.sqrt(dialX * dialX + dialY * dialY);
+        if (dialDistance <= compassRadius * COMPASS_HUB_HIT) {
+            playerArrow(aimDirection);
+            return;
+        }
+        if (dialDistance <= compassRadius) {
+            aimDirection = nearestDirection(dialX, dialY);
+            return;
         }
 
         // The tap target is widened by HATCH_TAP_REACH cells on each side to make hatches easy to hit
@@ -588,7 +605,22 @@ public class BattleScreen extends ScreenAdapter {
     }
 
     /**
-     * With at least one hatch open the arrow musters the crew out of every open hatch (the hatches then
+     * Snaps a tap inside the dial to one of the three moves the crew may make. Screen y grows upwards
+     * while JumpDirection.dy grows downwards, so a positive angle here is a move up the screen.
+     */
+    private JumpDirection nearestDirection(float dx, float dy) {
+        float degrees = (float) Math.toDegrees(Math.atan2(dy, dx));
+        if (degrees > 22.5f) {
+            return JumpDirection.FORWARD_UP;
+        }
+        if (degrees < -22.5f) {
+            return JumpDirection.FORWARD_DOWN;
+        }
+        return JumpDirection.FORWARD;
+    }
+
+    /**
+     * With at least one hatch open the compass musters the crew out of every open hatch (the hatches then
      * slam shut again); with all hatches closed it is an ordinary jump of the crew already on the net.
      */
     private void playerArrow(JumpDirection direction) {
@@ -613,7 +645,7 @@ public class BattleScreen extends ScreenAdapter {
         if (!openHatches[hatchIndex]) {
             message = "Luk " + (hatchIndex + 1) + " zamkniety (czeka " + waiting + " pir.).";
         } else if (state.canRelease(BattleSide.PLAYER, hatchIndex)) {
-            message = "Luk " + (hatchIndex + 1) + " otwarty - strzalka wyprowadzi zaloge.";
+            message = "Luk " + (hatchIndex + 1) + " otwarty - kompas wyprowadzi zaloge.";
         } else {
             message = "Luk " + (hatchIndex + 1) + " otwarty, ale pole wejsciowe zajete - odsun pirata.";
         }
@@ -633,7 +665,7 @@ public class BattleScreen extends ScreenAdapter {
         return count;
     }
 
-    /** Mustering the crew slams every hatch shut again, so the next arrow is a jump. */
+    /** Mustering the crew slams every hatch shut again, so the next use of the compass is a jump. */
     private void closeHatches() {
         for (int i = 0; i < openHatches.length; i++) {
             openHatches[i] = false;
@@ -1211,31 +1243,39 @@ public class BattleScreen extends ScreenAdapter {
                 && (hasOpenHatches() ? state.canDeploy(BattleSide.PLAYER, openHatches)
                         : state.canJump(BattleSide.PLAYER));
         float shade = active ? 1f : CONTROL_INACTIVE;
-        float half = buttonSize / 2f;
-        for (JumpDirection direction : JumpDirection.values()) {
-            float bx = compassX;
-            float by = compassY - direction.getDy() * buttonSize;
-            shapes.setColor(BUTTON_FACE_COLOR.r * shade, BUTTON_FACE_COLOR.g * shade,
-                    BUTTON_FACE_COLOR.b * shade, 1f);
-            shapes.rect(bx - half * BUTTON_FACE, by - half * BUTTON_FACE,
-                    buttonSize * BUTTON_FACE, buttonSize * BUTTON_FACE);
+        float r = compassRadius;
+        shapes.setColor(BUTTON_FACE_COLOR.r * shade, BUTTON_FACE_COLOR.g * shade,
+                BUTTON_FACE_COLOR.b * shade, 1f);
+        shapes.circle(compassX, compassY, r, DIAL_SEGMENTS);
+        shapes.setColor(ARROW_COLOR.r * shade, ARROW_COLOR.g * shade, ARROW_COLOR.b * shade, 1f);
+        shapes.circle(compassX, compassY, r, DIAL_SEGMENTS);
+        shapes.setColor(BUTTON_FACE_COLOR.r * shade, BUTTON_FACE_COLOR.g * shade,
+                BUTTON_FACE_COLOR.b * shade, 1f);
+        shapes.circle(compassX, compassY, r * (1f - COMPASS_RIM_RING), DIAL_SEGMENTS);
 
-            float dirX = direction.getDx(BattleSide.PLAYER);
-            float dirY = -direction.getDy();
-            float length = (float) Math.sqrt(dirX * dirX + dirY * dirY);
-            dirX /= length;
-            dirY /= length;
-            float perpX = -dirY;
-            float perpY = dirX;
-            float r = buttonSize * ARROW_RADIUS;
-            shapes.setColor(ARROW_COLOR.r * shade, ARROW_COLOR.g * shade, ARROW_COLOR.b * shade, 1f);
-            shapes.triangle(
-                    bx + dirX * r, by + dirY * r,
-                    bx - dirX * r * ARROW_TAIL + perpX * r * ARROW_WING,
-                    by - dirY * r * ARROW_TAIL + perpY * r * ARROW_WING,
-                    bx - dirX * r * ARROW_TAIL - perpX * r * ARROW_WING,
-                    by - dirY * r * ARROW_TAIL - perpY * r * ARROW_WING);
+        // The three marks on the rim are exactly the three moves the needle may point at.
+        shapes.setColor(ARROW_COLOR.r * shade, ARROW_COLOR.g * shade, ARROW_COLOR.b * shade, 1f);
+        for (JumpDirection direction : JumpDirection.values()) {
+            float markX = direction.getDx(BattleSide.PLAYER);
+            float markY = -direction.getDy();
+            float length = (float) Math.sqrt(markX * markX + markY * markY);
+            shapes.circle(compassX + markX / length * r * COMPASS_MARK_RING,
+                    compassY + markY / length * r * COMPASS_MARK_RING,
+                    r * COMPASS_MARK_RADIUS, MARK_SEGMENTS);
         }
+
+        float dirX = aimDirection.getDx(BattleSide.PLAYER);
+        float dirY = -aimDirection.getDy();
+        float length = (float) Math.sqrt(dirX * dirX + dirY * dirY);
+        dirX /= length;
+        dirY /= length;
+        float perpX = -dirY;
+        float perpY = dirX;
+        shapes.triangle(
+                compassX + dirX * r * NEEDLE_LENGTH, compassY + dirY * r * NEEDLE_LENGTH,
+                compassX + perpX * r * NEEDLE_HALF_WIDTH, compassY + perpY * r * NEEDLE_HALF_WIDTH,
+                compassX - perpX * r * NEEDLE_HALF_WIDTH, compassY - perpY * r * NEEDLE_HALF_WIDTH);
+        shapes.circle(compassX, compassY, r * COMPASS_HUB_RADIUS, MARK_SEGMENTS);
 
         float fleeShade = phase == Phase.PLAYER_TURN ? 1f : CONTROL_INACTIVE;
         shapes.setColor(FLEE_COLOR.r * fleeShade, FLEE_COLOR.g * fleeShade, FLEE_COLOR.b * fleeShade, 1f);
