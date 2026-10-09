@@ -502,8 +502,73 @@ Reszta liczb w pliku to indeksy, `2f`, `1f` i dzielenia - nie wartosci projektow
 .\gradlew.bat :core:compileJava --console=plain --quiet     # EXIT=0 wystarcza
 ```
 
-Projekt nie ma testow wizualnych ani modulu desktop, wiec jedyne sprawdzenie to uruchomienie na
-Androidzie (`android/`) albo powtorzenie matematyki z sekcji 3 i 5 w skrypcie rysujacym. Przy
-zmianach parametrow warto najpierw policzyc `cell`, `boardX`, `boardY` i `horizonY` dla najwezszego
-i najszerszego wspieranego ekranu: pasy tekstu i `arrowZone` zjadaja szerokosc, wiec `netScale`
-moze spasc do 1 i wowczas siatka jest mniejsza, niz wynika z `NET_SCALE`.
+Projekt nie ma testow wizualnych ani modulu desktop, ale ma **narzedzie do wizualizacji** (folder
+`_viz/`, patrz sekcja 12). Ono uruchamia prawdziwy `BattleScreen` na kilku rozdzielczosciach,
+zapisuje zrzuty i zestawienie liczb, wiec zamiast powtarzac matematyke z sekcji 3 i 5 w skrypcie
+mozna po prostu spojrzec na obrazek. Przy zmianach parametrow nadal warto najpierw policzyc `cell`,
+`boardX`, `boardY` i `horizonY` dla najwezszego i najszerszego wspieranego ekranu: pasy tekstu i
+`arrowZone` zjadaja szerokosc, wiec `netScale` moze spasc do 1 i wowczas siatka jest mniejsza, niz
+wynika z `NET_SCALE`. Narzedzie wypisuje te liczby samo (sekcja 12).
+
+## 12. Narzedzie do wizualizacji (`_viz/`)
+
+`_viz/` to osobny projekt Gradle, ktory **nie jest** czescia glownego builda (nie ma go w
+`settings.gradle`) i **nie jest wersjonowany** - jest wpisany do `.gitignore`, tak samo jak jego
+wyniki. Kompiluje `core/src/main/java` bezposrednio (`sourceSets` wskazuje na `../core`), wiec
+zadnego pliku z `core` nie trzeba zmieniac ani kopiowac.
+
+Uruchomienie z katalogu glownego repo (jedno polecenie generuje wszystko):
+
+```
+.\gradlew.bat -p _viz run --console=plain
+```
+
+Wynik trafia do `_viz/out/`:
+
+* `out/resolutions/*.png` - osiem rozdzielczosci (telefon pion, tablet, desktop, bardzo szeroki,
+  bardzo wysoki), sam ekran bitwy bez zadnych dodatkow;
+* `out/measurements/*.png` - te same rozdzielczosci z **nakladka pomiarowa**: ramka marginesu,
+  obrys sceny i planszy, siatka oczek, pasy tekstu, rezerwa na panel po prawej, strefa strzalek,
+  linia horyzontu, obrysy kadluba, zagla i masztu obu statkow oraz etykiety z liczbami w pikselach;
+* `out/states/*.png` - cztery stany bitwy (`start`, `mid`, `victory`, `defeat`) w 1920x1080;
+* `out/gallery.png` - zbiorcza plansza kontaktowa ze wszystkich zrzutow;
+* `out/probe/` - zrzuty z trybu diagnostycznego `-PvizMain=viz.Probe`;
+* `out/measurements.txt` - zestawienie liczbowe (patrz nizej).
+
+Inne tryby (pojedynczo) wybiera sie wlasciwoscia `-PvizMain=`, np. `-PvizMain=viz.Probe`
+(diagnostyka GL: sprawdza, czy bufor ramki dziala i czy obraz nie jest odwrocony - zapisuje
+`out/probe/probe-orientation.png` i `out/probe/probe-battle.png`). Domyslnie uruchamia sie
+`viz.VizMain`.
+
+`out/measurements.txt` dla kazdej rozdzielczosci podaje:
+
+* **kontrole modelu** - narzedzie liczy geometrie druga implementacja tych samych wzorow i
+  porownuje ja pole po polu z polami prawdziwego ekranu (23 wartosci, tolerancja 0.01 px). Kazda
+  niezgodnosc pojawia sie jako `ROZJAZD`; brak rozjazdow to `OK wszystkie 23 wartosci`. To zabezpiecza
+  przed sytuacja, w ktorej narzedzie mierzy cos innego, niz widac na ekranie;
+* **wejscie** - `margin`, `textScale`, `lineHeight`, `textWidth`, `topBand`, `bottomBand`,
+  `arrowZone`, `usableW`, `usableH`;
+* **plansza i scena** - `sceneCells`, `fit`, `netScale`, `cell`, `cell / lineHeight`;
+* **rezerwa na panel** - o ile pikseli plansza idzie w lewo dzieki `PANEL_RESERVE_CELLS` oraz
+  porownanie `cell` z rezerwa i bez niej (uwaga: przy waskich ekranach dziala warunek zwrotny
+  `MIN_CELL`, wiec rezerwa kosztuje 0 px - zestawienie to pokazuje);
+* **oba statki** - `near`/`far`/`room`, szerokosc kadluba w px i w `cell`, `deckY`, `keelY`,
+  szerokosc zagla, wysokosc zawieszenia zagla nad pokladem, wysokosc obciecia maska, szerokosc
+  masztu;
+* **pomiar z pikseli** - niezalezny od modelu skan koloru `HULL_COLOR` na gotowym obrazie, ktory
+  mierzy kadlub i maszt. Zgodnosc z liczbami wyliczonymi oznacza, ze i wzory, i rysowanie sa
+  w porzadku. Roznica kilku pikseli na krawedziach (antyaliasing i zaokraglenie do piksela) jest
+  normalna, ale pomiar przyciety krawedzia ekranu jest oznaczany jako `UWAGA`;
+* **sterowanie** - polozenie i rozmiar przyciskow w prawej czesci ekranu.
+
+Zasady, ktorych trzyma sie narzedzie:
+
+* `BattleScreen.java` jest **tylko czytany** - narzedzie siega po jego pola i stale przez refleksje
+  (`viz/Layout.java`), a nie przez kopiowanie wartosci;
+* scena rysowana jest poza ekranem (ukryte okno GL + `FrameBuffer`), wiec nic nie wyskakuje na
+  pulpicie i nie trzeba emulatora ani telefonu;
+* losowosc jest zaszyta (`SEED`), a fale i slonce dostaja wlasne ziarno, zeby ten sam zrzut byl
+  powtarzalny;
+* stany bitwy powstaja przez wykonanie legalnych ruchow na `BattleState`, a nie przez podmiane
+  pol - wiec to, co widac na `out/states/*.png`, to naprawde mozliwe stany gry.
+
