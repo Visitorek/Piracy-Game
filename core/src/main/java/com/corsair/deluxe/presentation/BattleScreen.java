@@ -87,17 +87,20 @@ public class BattleScreen extends ScreenAdapter {
     private static final float ARROW_ZONE_LINES = 2.4f;
     /** The side panel takes this many cells of the scene box, so the controls stop crowding the board. */
     private static final float PANEL_RESERVE_CELLS = 1f;
-    /** The compass dial's radius is this many cells, capped by the panel and by the free height. */
+    /** The compass dial's radius is this many cells, capped by the strip of sea it stands in. */
     private static final float COMPASS_RADIUS_CELLS = 1.6f;
-    /** Shares of the dial radius: the rim ring, the hub, and how far from the centre the hub is tappable. */
+    /** Shares of the dial radius: the rim ring and the GO button in the middle. */
     private static final float COMPASS_RIM_RING = 0.055f;
-    private static final float COMPASS_HUB_RADIUS = 0.14f;
-    private static final float COMPASS_HUB_HIT = 0.34f;
-    /** A rim mark sits this far out and is this big; the needle reaches this far, and is this wide. */
-    private static final float COMPASS_MARK_RING = 0.82f;
+    private static final float COMPASS_GO_RADIUS = 0.34f;
+    /** A direction mark sits this far out and is this big; the needle reaches this far, and is this wide. */
+    private static final float COMPASS_MARK_RING = 0.50f;
     private static final float COMPASS_MARK_RADIUS = 0.085f;
     private static final float NEEDLE_LENGTH = 0.86f;
     private static final float NEEDLE_HALF_WIDTH = 0.11f;
+    /** The cardinal letters sit this far out, and every compass label is this tall a share of the
+     * dial radius, so the letters keep their place on the dial at any size. */
+    private static final float COMPASS_LETTER_RING = 0.78f;
+    private static final float COMPASS_LABEL_SIZE = 0.28f;
     /** How many triangles the dial, and each small mark, are drawn with. */
     private static final int DIAL_SEGMENTS = 48;
     private static final int MARK_SEGMENTS = 12;
@@ -419,8 +422,10 @@ public class BattleScreen extends ScreenAdapter {
     private float compassX;
     private float compassY;
     private float compassRadius;
-    /** Where the compass needle points: the move that tapping the hub will make. */
+    /** Where the compass needle points: the move that the GO button in the middle will make. */
     private JumpDirection aimDirection = JumpDirection.FORWARD;
+    /** True while a finger that went down on the dial is still dragging the needle. */
+    private boolean dragging;
     private float fleeX;
     private float fleeY;
     private float fleeHalfWidth;
@@ -531,12 +536,15 @@ public class BattleScreen extends ScreenAdapter {
         fleeX = width - margin - fleeHalfWidth;
         fleeY = height - margin - topBand - lineHeight * FLEE_CORNER_GAP_LINES - fleeHalfHeight;
 
-        // The compass dial sits in the middle of the panel, as big as the panel and the strip left
-        // between the text band and the flee button allow.
-        compassX = rightEdge + rightWidth / 2f;
+        // The compass dial stands in the middle of the sea between the enemy hull and the right
+        // margin, so it never sits over a ship, and it is as big as that strip of sea and the room
+        // left between the top text band and the flee button allow.
+        float enemyFar = hullNear(false) + hullSpan(false);
+        compassX = (enemyFar + width - margin) / 2f;
         compassY = boardY + cell * BattleState.HEIGHT / 2f;
-        float freeStrip = fleeY - fleeHalfHeight - (margin + topBand);
-        compassRadius = Math.min(cell * COMPASS_RADIUS_CELLS, Math.min(rightWidth / 2f, freeStrip / 2f));
+        float freeHalf = (width - margin - enemyFar) / 2f;
+        compassRadius = Math.min(cell * COMPASS_RADIUS_CELLS, Math.min(freeHalf,
+                Math.min(fleeY - fleeHalfHeight - compassY, compassY - (margin + topBand))));
     }
 
     @Override
@@ -569,11 +577,21 @@ public class BattleScreen extends ScreenAdapter {
             flee();
             return;
         }
-        if (!Gdx.input.justTouched()) {
+        if (!Gdx.input.isTouched()) {
+            dragging = false;
             return;
         }
         float touchX = Gdx.input.getX() * width / Gdx.graphics.getWidth();
         float touchY = height - Gdx.input.getY() * height / Gdx.graphics.getHeight();
+
+        // Dragging the needle only aims it: the move itself is made by the GO button in the middle.
+        if (dragging && !Gdx.input.justTouched()) {
+            aimDirection = nearestDirection(touchX - compassX, touchY - compassY);
+            return;
+        }
+        if (!Gdx.input.justTouched()) {
+            return;
+        }
 
         if (Math.abs(touchX - fleeX) < fleeHalfWidth && Math.abs(touchY - fleeY) < fleeHalfHeight) {
             flee();
@@ -583,11 +601,12 @@ public class BattleScreen extends ScreenAdapter {
         float dialX = touchX - compassX;
         float dialY = touchY - compassY;
         float dialDistance = (float) Math.sqrt(dialX * dialX + dialY * dialY);
-        if (dialDistance <= compassRadius * COMPASS_HUB_HIT) {
+        if (dialDistance <= compassRadius * COMPASS_GO_RADIUS) {
             playerArrow(aimDirection);
             return;
         }
         if (dialDistance <= compassRadius) {
+            dragging = true;
             aimDirection = nearestDirection(dialX, dialY);
             return;
         }
@@ -769,6 +788,24 @@ public class BattleScreen extends ScreenAdapter {
      */
     private float shipShift(BattleSide side) {
         return (side == BattleSide.PLAYER ? -1f : 1f) * cell * SHIP_GAP_CELLS;
+    }
+
+    /**
+     * Where the hull of one side starts: half a cell off the net, on the edge cell of the board.
+     */
+    private float hullNear(boolean player) {
+        float edge = player ? cellLeft(1) : cellLeft(BattleState.WIDTH - 1);
+        return edge + shipShift(player ? BattleSide.PLAYER : BattleSide.ENEMY);
+    }
+
+    /**
+     * How wide that hull is. A narrow screen leaves it less room than the sketch asks for, so the hull
+     * shrinks rather than running off the edge.
+     */
+    private float hullSpan(boolean player) {
+        float near = hullNear(player);
+        float room = player ? near - margin : width - margin - near;
+        return Math.max(cell, Math.min(cell * HULL_TOP_CELLS, room - cell * SHIP_FIT_MARGIN));
     }
 
     private void draw() {
@@ -1024,14 +1061,9 @@ public class BattleScreen extends ScreenAdapter {
     }
 
     private void drawShip(boolean player) {
-        // The ship stands half a cell off the net, so the horizontal strands show as ropes running from
-        // the net across to the hull. A narrow screen leaves the ship less room than the sketch asks
-        // for, so the hull shrinks rather than running off the edge.
-        float edge = player ? cellLeft(1) : cellLeft(BattleState.WIDTH - 1);
+        float near = hullNear(player);
         float out = player ? -1f : 1f;
-        float near = edge + shipShift(player ? BattleSide.PLAYER : BattleSide.ENEMY);
-        float room = player ? near - margin : width - margin - near;
-        float span = Math.max(cell, Math.min(cell * HULL_TOP_CELLS, room - cell * SHIP_FIT_MARGIN));
+        float span = hullSpan(player);
         float deckY = boardY + cell * (BattleState.HEIGHT + DECK_LIFT_CELLS);
         // The water in front of the hull is shallow, so the keel stops at the bottom of the scene rather
         // than reaching into the log line underneath it.
@@ -1253,7 +1285,8 @@ public class BattleScreen extends ScreenAdapter {
                 BUTTON_FACE_COLOR.b * shade, 1f);
         shapes.circle(compassX, compassY, r * (1f - COMPASS_RIM_RING), DIAL_SEGMENTS);
 
-        // The three marks on the rim are exactly the three moves the needle may point at.
+        // The three marks on the dial are exactly the three moves the needle may point at. They sit
+        // well inside the rim, clear of the cardinal letters drawn around them.
         shapes.setColor(ARROW_COLOR.r * shade, ARROW_COLOR.g * shade, ARROW_COLOR.b * shade, 1f);
         for (JumpDirection direction : JumpDirection.values()) {
             float markX = direction.getDx(BattleSide.PLAYER);
@@ -1275,7 +1308,8 @@ public class BattleScreen extends ScreenAdapter {
                 compassX + dirX * r * NEEDLE_LENGTH, compassY + dirY * r * NEEDLE_LENGTH,
                 compassX + perpX * r * NEEDLE_HALF_WIDTH, compassY + perpY * r * NEEDLE_HALF_WIDTH,
                 compassX - perpX * r * NEEDLE_HALF_WIDTH, compassY - perpY * r * NEEDLE_HALF_WIDTH);
-        shapes.circle(compassX, compassY, r * COMPASS_HUB_RADIUS, MARK_SEGMENTS);
+        // The GO button sits over the foot of the needle and is the whole tap target for the move.
+        shapes.circle(compassX, compassY, r * COMPASS_GO_RADIUS, MARK_SEGMENTS);
 
         float fleeShade = phase == Phase.PLAYER_TURN ? 1f : CONTROL_INACTIVE;
         shapes.setColor(FLEE_COLOR.r * fleeShade, FLEE_COLOR.g * fleeShade, FLEE_COLOR.b * fleeShade, 1f);
@@ -1300,6 +1334,25 @@ public class BattleScreen extends ScreenAdapter {
         font.setColor(Color.WHITE);
         drawBlockBottom(message, margin, textWidth);
         drawFleeLabel();
+        drawCompassLabels();
+    }
+
+    /**
+     * The cardinal letters around the dial and the GO label on the button in the middle. Both are
+     * sized from the dial radius rather than from the text scale, so a small dial carries small
+     * letters instead of spilling over the hull beside it.
+     */
+    private void drawCompassLabels() {
+        float ring = compassRadius * COMPASS_LETTER_RING;
+        font.getData().setScale(textScale * (compassRadius * COMPASS_LABEL_SIZE) / lineHeight);
+        font.setColor(Color.WHITE);
+        drawCentered("N", compassX, compassY + ring);
+        drawCentered("E", compassX + ring, compassY);
+        drawCentered("S", compassX, compassY - ring);
+        drawCentered("W", compassX - ring, compassY);
+        font.setColor(Color.BLACK);
+        drawCentered("GO!", compassX, compassY);
+        font.getData().setScale(textScale);
     }
 
     private String playerLine() {

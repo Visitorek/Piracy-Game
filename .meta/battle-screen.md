@@ -81,13 +81,19 @@ ekranem powrotu (`returnScreen`). Wyjscie z ekranu idzie przez `BattleResult` (p
     (HORIZON_HEIGHT_CELLS + SEA_DEPTH) / netScale`. Dzieki temu powiekszenie siatki zabiera
     miejsce niebu i morzu, a nie przesuwa horyzontu.
 11. Prawa kolumna. `rightWidth` mierzy sie **od prawej krawedzi planszy do `width - margin`**, wiec
-    cala rezerwa z punktu 7 trafia wlasnie do panelu: `compassX = prawa krawedz planszy + rightWidth / 2`,
-    `compassY = srodek planszy`. Promien tarczy kompasu to
-    `compassRadius = min(cell * COMPASS_RADIUS_CELLS, min(rightWidth / 2, wolny pas / 2))`, gdzie
-    `wolny pas = (fleeY - fleeHalfHeight) - (margin + topBand)`, czyli odstep miedzy pasem napisow
-    a plytka ucieczki. Na wszystkich osmiu badanych rozdzielczosciach ograniczeniem jest
-    `cell * COMPASS_RADIUS_CELLS`, wiec tarcza ma srednice `3.2` oczka i nigdy nie wchodzi na plansze
-    ani na plytke ucieczki.
+    cala rezerwa z punktu 7 trafia wlasnie do panelu. Tarcza kompasu nie stoi jednak w srodku panelu,
+    tylko w srodku **wolnej wody**: liczy sie od dalekiej krawedzi kadluba wroga do linii marginesu,
+    bo tylko ten pas jest naprawde pusty:
+    `enemyFar = hullNear(false) + hullSpan(false)`,
+    `compassX = (enemyFar + width - margin) / 2`, `compassY = srodek planszy`.
+    Promien tarczy to `compassRadius = min(cell * COMPASS_RADIUS_CELLS, min(wolna woda / 2,
+    wolny pas nad, wolny pas pod))`, gdzie `wolna woda = width - margin - enemyFar`,
+    `wolny pas nad = (fleeY - fleeHalfHeight) - compassY`, a `wolny pas pod = compassY - (margin + topBand)`.
+    Na siedmiu z osmiu badanych rozdzielczosci ograniczeniem jest `cell * COMPASS_RADIUS_CELLS`,
+    wiec tarcza ma srednice `3.2` oczka; na 400x800 zweza ja polowa wolnej wody. Pas nad i pas pod
+    nigdy nie wiaza w praktyce (srodek planszy jest duzo nizej niz pas napisow i duzo wyzej niz
+    plytka ucieczki), ale zostaja w `min`, zeby tarcza nie mogla wyjsc za ekran. Tarcza nigdy nie
+    wchodzi na kadlub wroga ani na plytke ucieczki.
 12. **Przycisk ucieczki nie nalezy do kolumny kompasu.** To mala plytka w prawym gornym rogu
     obszaru gry: `fleeHalfWidth = min(rightWidth / 2, lineHeight * FLEE_HALF_WIDTH_LINES)`,
     `fleeHalfHeight = lineHeight * FLEE_HALF_HEIGHT_LINES`,
@@ -106,10 +112,11 @@ shapes.begin(Filled)
                     -> drawClouds -> drawWaves -> drawSunGlitter -> drawFoam
   drawBoard()       drawNet -> drawShips -> kwadraty pokladu + drawHatch -> kola zalogi
   drawSceneMask()   maska sceny: tlo od sceneTop do gory ekranu
-  drawControls()    kompas (tarcza, obwodka, znaczki, igla, piasta) -> przycisk ucieczki
+  drawControls()    kompas (tarcza, obwodka, znaczki, igla, plytka GO!) -> przycisk ucieczki
 shapes.end()
 batch.begin()
-  drawTexts()       linia gracza, linia wroga, linia tury, podpowiedz, log (dolem), "UCIECZKA"
+  drawTexts()       linia gracza, linia wroga, linia tury, podpowiedz, log (dolem), litery N/E/S/W
+                    i "GO!" na tarczy, "UCIECZKA"
 batch.end()
 ```
 
@@ -126,8 +133,9 @@ i napisami. Zamalowuje tlem (`BACKDROP`) wszystko od `sceneTop` do gornej krawed
 takielunek - rysowany wyzej, niz siega niebo - jest ucinany plasko na gornej krawedzi sceny.
 Niebo konczy sie dokladnie na `sceneTop`, wiec maska nie przykrywa niczego poza czystym tlem;
 kompas, przycisk ucieczki i napisy leza ponizej tej linii albo ida juz innym potokiem (`batch`).
-Kompas idzie **po** statkach, wiec jego nieprzezroczysta tarcza przykrywa statek, ktory pod nia
-wpada (na 400x800 i 1080x1920 siega ona kadluba wroga).
+Kompas idzie **po** statkach, wiec jego nieprzezroczysta tarcza przykrywalaby statek, ktory pod nia
+wpada - dlatego tarcza jest wysrodkowana w wolnej wodzie i do kadluba wroga jej nie brakuje
+(patrz punkt 11 w sekcji 3).
 
 ## 5. Katalog parametrow
 
@@ -150,7 +158,7 @@ Wartosci w nawiasach to stan obecny. "Jedn." mowi, jak czytac liczbe: `cell` = u
 | `LOG_BAND_LINES` / `LOG_BAND_PAD` | linie | 1.6 / 0.4 | minimalna wysokosc pasa logu i oddech nad logiem |
 | `ARROW_ZONE_WIDTH` / `ARROW_ZONE_LINES` | 0..1 / linie | 0.14 / 2.4 | szerokosc kolumny sterowania |
 | `PANEL_RESERVE_CELLS` | cell | 1 | ile oczek pudelka sceny oddac prawemu panelowi; plansza przesuwa sie w lewo zamiast sciskac sterowanie (oddawane, gdy `cell` spadlby pod `MIN_CELL`) |
-| `COMPASS_RADIUS_CELLS` | cell | 1.6 | promien tarczy kompasu; `min` z polowa panelu i polowa wolnego pasa |
+| `COMPASS_RADIUS_CELLS` | cell | 1.6 | promien tarczy kompasu; `min` z polowa wolnej wody i z wolnym pasem nad i pod tarcza |
 | `FLEE_HALF_WIDTH_LINES` | linie | 3 | polowa szerokosci przycisku ucieczki; nigdy wiecej niz polowa panelu (`rightWidth / 2`) |
 | `FLEE_HALF_HEIGHT_LINES` | linie | 1.1 | polowa wysokosci przycisku ucieczki |
 | `FLEE_CORNER_GAP_LINES` | linie | 0.5 | oddech miedzy pasem tekstu a przyciskiem ucieczki |
@@ -402,15 +410,16 @@ na wezle. Poziome liny przechodza przez szczeline `SHIP_GAP_CELLS` i wchodza pod
 
 | Parametr | Wartosc | Co robi |
 |---|---|---|
-| `COMPASS_RADIUS_CELLS` | 1.6 cell | promien tarczy kompasu (srednica 3.2 oczka); `min` z polowa panelu i polowa wolnego pasa |
+| `COMPASS_RADIUS_CELLS` | 1.6 cell | promien tarczy kompasu (srednica 3.2 oczka); `min` z polowa wolnej wody i z wolnym pasem nad i pod tarcza |
 | `COMPASS_RIM_RING` | 0.055 | grubosc obwodki jako udzial promienia |
-| `COMPASS_HUB_RADIUS` | 0.14 | promien piasty (srodka) jako udzial promienia |
-| `COMPASS_HUB_HIT` | 0.34 | jak daleko od srodka liczy sie dotkniecie piasty |
-| `COMPASS_MARK_RING` / `COMPASS_MARK_RADIUS` | 0.82 / 0.085 | gdzie lezy i jak duzy jest znaczek na obrzezu |
+| `COMPASS_GO_RADIUS` | 0.34 | promien plytki "GO!" - dokladnie tyle wynosi tez zasieg dotkniecia wykonujacego ruch |
+| `COMPASS_MARK_RING` / `COMPASS_MARK_RADIUS` | 0.50 / 0.085 | gdzie lezy i jak duzy jest znaczek kierunku; przesuniety do srodka, zeby nie kolidowal z literami |
+| `COMPASS_LETTER_RING` | 0.78 | okrag, po ktorym rozlozone sa litery N/E/S/W, jako udzial promienia |
+| `COMPASS_LABEL_SIZE` | 0.28 | wysokosc liter i napisu "GO!" jako udzial promienia tarczy |
 | `NEEDLE_LENGTH` / `NEEDLE_HALF_WIDTH` | 0.86 / 0.11 | igla wzgledem promienia |
 | `DIAL_SEGMENTS` / `MARK_SEGMENTS` | 48 / 12 | ile trojkatow maja kola tarczy i znaczkow |
 | `BUTTON_FACE_COLOR` | 0.2, 0.2, 0.28 | kolor tarczy (i tla pod obwodka) |
-| `ARROW_COLOR` | 0.95, 0.8, 0.35 | kolor obwodki, znaczkow, igly i piasty |
+| `ARROW_COLOR` | 0.95, 0.8, 0.35 | kolor obwodki, znaczkow, igly i plytki "GO!" |
 | `CONTROL_INACTIVE` | 0.45 | o tyle przygaszone jest wszystko, co teraz nie dziala |
 | `FLEE_LABEL_PAD` | 0.4 linie | oddech wokol napisu "UCIECZKA" |
 | `FLEE_COLOR` | 0.45, 0.12, 0.12 | ciemna czerwien przycisku ucieczki |
@@ -418,18 +427,29 @@ na wezle. Poziome liny przechodza przez szczeline `SHIP_GAP_CELLS` i wchodza pod
 | `FLEE_CORNER_GAP_LINES` | 0.5 linie | oddech miedzy pasem tekstu a plytka |
 
 **Kompas** (`drawControls`) rysuje w kolejnosci: tarcza (`circle` w `BUTTON_FACE_COLOR`), obwodka
-(`circle` w `ARROW_COLOR` i na nim mniejszy `circle` w `BUTTON_FACE_COLOR`), trzy znaczki na obrzezu
-w odleglosci `COMPASS_MARK_RING`, igla (trojkat od piasty do `NEEDLE_LENGTH`) i piasta. Trzy znaczki
-to dokladnie trzy dozwolone kierunki igly: prawo, prawa gora, prawy dol (`FORWARD`, `FORWARD_UP`,
-`FORWARD_DOWN`).
+(`circle` w `ARROW_COLOR` i na nim mniejszy `circle` w `BUTTON_FACE_COLOR`), trzy znaczki w odleglosci
+`COMPASS_MARK_RING`, igla (trojkat od srodka do `NEEDLE_LENGTH`) i plytka "GO!" (kolo o promieniu
+`compassRadius * COMPASS_GO_RADIUS` w `ARROW_COLOR`, a na nim mniejszy okrag w `BUTTON_FACE_COLOR`).
+Trzy znaczki to dokladnie trzy dozwolone kierunki igly: prawo, prawa gora, prawy dol (`FORWARD`,
+`FORWARD_UP`, `FORWARD_DOWN`); siedza blizej srodka, bo na obrzezu kolidowalyby z literami.
+
+**Litery N/E/S/W i "GO!"** (`drawCompassLabels`, wolane na koncu `drawTexts`, bo to potok `batch`)
+sa czysto ozdobna roza kompasu: biale `N`, `E`, `S`, `W` leza na czterech osiach tarczy w odleglosci
+`COMPASS_LETTER_RING`, a na srodku jest czarny napis `GO!`. Rozmiar obu bierze sie z promienia
+tarczy (`compassRadius * COMPASS_LABEL_SIZE`), wiec skaluja sie razem z kompasem; metoda podmienia
+skale fontu i **przywraca ja** po sobie (ten sam wzorzec co `drawFleeLabel`). Litery nic nie
+rezerwuja w ukladzie - leza wewnatrz tarczy, ktora i tak jest wolna woda.
 
 **Obsluga dotkniec** (`handleInput`), po tescie plytki ucieczki, a przed testem lukow:
 
-* dotkniecie w odleglosci `<= compassRadius * COMPASS_HUB_HIT` od srodka **wykonuje ruch** w kierunku,
-  w ktory wskazuje igla (`aimDirection`) - `playerArrow(aimDirection)`;
-* dotkniecie gdziekolwiek indziej w tarczy (`<= compassRadius`) tylko **ustawia igle**:
-  `nearestDirection` bierze kat `atan2` i przyporzadkowuje go najblizszemu z trzech kierunkow
-  (granice na `+-22.5` stopnia);
+* dotkniecie w odleglosci `<= compassRadius * COMPASS_GO_RADIUS` od srodka **wykonuje ruch** w kierunku,
+  w ktory wskazuje igla (`aimDirection`) - `playerArrow(aimDirection)`. Plytka "GO!" jest wiec
+  jednoczesnie rysowana i klikalna - nie ma osobnego, niewidocznego obszaru dotyku;
+* **przeciagniecie palca** (`dragging`) tylko **ustawia igle**: dopoki palec jest na ekranie, kazdy
+  ruch przelicza `nearestDirection(touchX - compassX, touchY - compassY)`, czyli kat `atan2`
+  przyporzadkowany najblizszemu z trzech kierunkow (granice na `+-22.5` stopnia). Puszczenie palca
+  konczy przeciaganie i **nie** wykonuje ruchu - ruch robi dopiero "GO!";
+* dotkniecie (tap) gdziekolwiek innym w tarczy (`<= compassRadius`) tez tylko **ustawia igle**;
 * dotkniecie poza tarcza idzie dalej, do lukow.
 
 `aimDirection` startuje jako `FORWARD` i **przezywa miedzy turami** - igla zostaje tam, gdzie ja
@@ -461,10 +481,10 @@ wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 d
 | Slupek oczekujacych | `drawHatch` | jedno male kolo na pirata, od gory luku w dol |
 | Znacznik wejscia | `drawEntryMarker` | zloty pierscien z tlem w srodku |
 | Zaloga na siatce | `drawBoard` | cien + kolo w kolorze strony |
-| Kompas | `drawControls` | tarcza + obwodka + 3 znaczki na obrzezu (trzy mozliwe kierunki igly) + igla + piasta |
-| Prawy panel (kompas) | `computeGeometry` / `drawControls` | prawa krawedz planszy + cala rezerwa z `PANEL_RESERVE_CELLS`, zmierzona do `width - margin`; tarcza wysrodkowana na `compassX`/`compassY`, promien `COMPASS_RADIUS_CELLS` oczek |
+| Kompas | `drawControls` / `drawCompassLabels` | tarcza + obwodka + 3 znaczki (trzy mozliwe kierunki igly) + igla + plytka "GO!" + litery N/E/S/W i napis "GO!" |
+| Wolna woda (kompas) | `computeGeometry` / `drawControls` | pas od dalekiej krawedzi kadluba wroga do `width - margin`; tarcza wysrodkowana na `compassX`/`compassY`, promien `COMPASS_RADIUS_CELLS` oczek (mniejszy, gdy pas jest wezszy niz tarcza) |
 | Przycisk ucieczki | `drawControls` / `drawFleeLabel` | plytka `FLEE_COLOR` w prawym gornym rogu obszaru gry, tuz pod pasem tekstu + napis "UCIECZKA" (zmniejszany, gdy nie miesci sie w plytce) |
-| Napisy | `drawTexts` | 4 bloki tekstu + log + etykieta ucieczki |
+| Napisy | `drawTexts` | 4 bloki tekstu + log + etykieta ucieczki + litery kompasu i napis "GO!" |
 
 ## 7. Mapowanie elementow na model (`BattleState`)
 
@@ -494,7 +514,8 @@ wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 d
 | Komunikaty | `Luk N jest zniszczony.`, `Luk N jest pusty.`, `Luk N zamkniety (czeka N pir.).`, `Luk N otwarty - kompas wyprowadzi zaloge.`, `Luk N otwarty, ale pole wejsciowe zajete - odsun pirata.` |
 | Statusy | `Twoja tura: wyprowadzenie`, `Twoja tura: skok`, `Tura wroga...`, `ZWYCIESTWO!`, `PORAZKA`, `REMIS`, `UCIECZKA` |
 | Kierunki | `naprzod`, `ukos w gore`, `ukos w dol` |
-| Przycisk | `UCIECZKA` |
+| Kompas | `N`, `E`, `S`, `W` (roza kompasu) |
+| Przycisk | `UCIECZKA`, `GO!` |
 
 ## 9. Przepisy na typowe zmiany
 
@@ -524,6 +545,11 @@ wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 d
 | Wiecej miejsca na tekst | `LOG_BAND_LINES`, `TEXT_GAP`, `MARGIN_*` |
 | Wiecej miejsca na sterowanie po prawej | `PANEL_RESERVE_CELLS` (1 = jedno oczko; plansza idzie w lewo, a panel rosnie o ta sama szerokosc) |
 | Wiekszy kompas | `COMPASS_RADIUS_CELLS`, `ARROW_ZONE_*` |
+| Gdzie stoi kompas (srodek wolnej wody) | nic nie trzeba ruszac - liczy sie sam z kadluba wroga i `width - margin`; przy zbyt waskim pasie zweza sie |
+| Wieksza / mniejsza plytka "GO!" | `COMPASS_GO_RADIUS` (to samo ustawienie zmienia obszar dotkniecia wykonujacy ruch) |
+| Blizej / dalej od srodka litery i znaczki | `COMPASS_LETTER_RING`, `COMPASS_MARK_RING` |
+| Wieksze litery N/E/S/W i "GO!" | `COMPASS_LABEL_SIZE` |
+| Wlaczanie / wylaczanie przeciagania igly | galaz `dragging` w `handleInput` |
 | Inny przycisk ucieczki | `FLEE_*` |
 | Inne kolory stron | `PLAYER_COLOR`, `ENEMY_COLOR` |
 
@@ -571,7 +597,8 @@ Wynik trafia do `_viz/out/`:
   bardzo wysoki), sam ekran bitwy bez zadnych dodatkow;
 * `out/measurements/*.png` - te same rozdzielczosci z **nakladka pomiarowa**: ramka marginesu,
   obrys sceny i planszy, siatka oczek, pasy tekstu, rezerwa na panel po prawej, strefa strzalek,
-  linia horyzontu, obrysy kadluba, zagla i masztu obu statkow oraz etykiety z liczbami w pikselach;
+  linia horyzontu, obrysy kadluba, zagla i masztu obu statkow, obrys kompasu z jego plytka "GO!",
+  krzyzem liter i etykieta z liczbami w pikselach;
 * `out/states/*.png` - cztery stany bitwy (`start`, `mid`, `victory`, `defeat`) w 1920x1080;
 * `out/gallery.png` - zbiorcza plansza kontaktowa ze wszystkich zrzutow;
 * `out/probe/` - zrzuty z trybu diagnostycznego `-PvizMain=viz.Probe`;
@@ -601,8 +628,10 @@ Inne tryby (pojedynczo) wybiera sie wlasciwoscia `-PvizMain=`, np. `-PvizMain=vi
   mierzy kadlub i maszt. Zgodnosc z liczbami wyliczonymi oznacza, ze i wzory, i rysowanie sa
   w porzadku. Roznica kilku pikseli na krawedziach (antyaliasing i zaokraglenie do piksela) jest
   normalna, ale pomiar przyciety krawedzia ekranu jest oznaczany jako `UWAGA`;
-* **sterowanie** - `compassX`, `compassY`, `compassRadius` oraz polowa szerokosci i polowa wysokosci
-  plytki ucieczki (`fleeX`, `fleeY`, `fleeHalfWidth`, `fleeHalfHeight`).
+* **sterowanie** - `compassX`, `compassY`, `compassRadius`, promien tarczy "GO!" (`COMPASS_GO_RADIUS`),
+  promien okregu liter (`COMPASS_LETTER_RING`), rozmiar napisu (`COMPASS_LABEL_SIZE`), polowa
+  szerokosci wolnej wody, w ktorej stoi kompas, oraz polowa szerokosci i polowa wysokosci plytki
+  ucieczki (`fleeX`, `fleeY`, `fleeHalfWidth`, `fleeHalfHeight`).
 
 Zasady, ktorych trzyma sie narzedzie:
 
