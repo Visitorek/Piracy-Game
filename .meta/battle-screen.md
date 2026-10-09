@@ -83,8 +83,14 @@ ekranem powrotu (`returnScreen`). Wyjscie z ekranu idzie przez `BattleResult` (p
 11. Prawa kolumna. `rightWidth` mierzy sie **od prawej krawedzi planszy do `width - margin`**, wiec
     cala rezerwa z punktu 7 trafia wlasnie do panelu: `compassX = prawa krawedz planszy + rightWidth / 2`,
     `compassY = srodek planszy`,
-    `buttonSize = min(rightWidth / COMPASS_BUTTON_WIDTH, usableH * COMPASS_BUTTON_HEIGHT)`,
-    a przycisk ucieczki z `FLEE_*` (patrz sekcja 10).
+    `buttonSize = min(rightWidth / COMPASS_BUTTON_WIDTH, usableH * COMPASS_BUTTON_HEIGHT)`.
+12. **Przycisk ucieczki nie nalezy do kolumny kompasu.** To mala plytka w prawym gornym rogu
+    obszaru gry: `fleeHalfWidth = min(rightWidth / 2, lineHeight * FLEE_HALF_WIDTH_LINES)`,
+    `fleeHalfHeight = lineHeight * FLEE_HALF_HEIGHT_LINES`,
+    `fleeX = width - margin - fleeHalfWidth`,
+    `fleeY = height - margin - topBand - lineHeight * FLEE_CORNER_GAP_LINES - fleeHalfHeight`.
+    Dzieki `min` z polowa panelu plytka nigdy nie wchodzi na plansze, a dzieki `topBand` w wzorze
+    nie zaslania napisow (patrz sekcja 5.10).
 
 ## 4. Kolejnosc rysowania
 
@@ -139,9 +145,9 @@ Wartosci w nawiasach to stan obecny. "Jedn." mowi, jak czytac liczbe: `cell` = u
 | `PANEL_RESERVE_CELLS` | cell | 1 | ile oczek pudelka sceny oddac prawemu panelowi; plansza przesuwa sie w lewo zamiast sciskac sterowanie (oddawane, gdy `cell` spadlby pod `MIN_CELL`) |
 | `COMPASS_BUTTON_WIDTH` | - | 3.4 | przycisk = panel / to |
 | `COMPASS_BUTTON_HEIGHT` | 0..1 | 0.24 | ... ale nie wyzszy niz ta czesc wolnej wysokosci |
-| `FLEE_HALF_WIDTH_BUTTONS` / `FLEE_HALF_WIDTH_OF_PANEL` | - / 0..1 | 1.5 / 0.45 | polowa szerokosci przycisku ucieczki |
-| `FLEE_HALF_HEIGHT_BUTTONS` / `FLEE_HALF_HEIGHT_LINES` | - / linie | 0.4 / 0.75 | polowa wysokosci przycisku ucieczki |
-| `FLEE_DROP_BUTTONS` | - | 2.2 | jak nisko pod kompasem siedzi przycisk |
+| `FLEE_HALF_WIDTH_LINES` | linie | 3 | polowa szerokosci przycisku ucieczki; nigdy wiecej niz polowa panelu (`rightWidth / 2`) |
+| `FLEE_HALF_HEIGHT_LINES` | linie | 1.1 | polowa wysokosci przycisku ucieczki |
+| `FLEE_CORNER_GAP_LINES` | linie | 0.5 | oddech miedzy pasem tekstu a przyciskiem ucieczki |
 | `BACKDROP` | RGB | 20, 13, 18 | tlo calej sceny (nie widac go, ale nie ma szczelin) |
 | `PLAYER_COLOR` | RGB | 0.25, 0.55, 1 | kolor gracza: napisy, luki, zaloga, znaczniki |
 | `ENEMY_COLOR` | RGB | 0.9, 0.2, 0.2 | to samo dla wroga |
@@ -397,6 +403,13 @@ na wezle. Poziome liny przechodza przez szczeline `SHIP_GAP_CELLS` i wchodza pod
 | `CONTROL_INACTIVE` | 0.45 | o tyle przygaszone jest wszystko, co teraz nie dziala |
 | `FLEE_LABEL_PAD` | 0.4 linie | oddech wokol napisu "UCIECZKA" |
 | `FLEE_COLOR` | 0.45, 0.12, 0.12 | ciemna czerwien przycisku ucieczki |
+| `FLEE_HALF_WIDTH_LINES` / `FLEE_HALF_HEIGHT_LINES` | 3 / 1.1 linie | rozmiar plytki ucieczki (cala plytka = 6 x 2.2 linii); szerokosc ogranicza polowa panelu, zeby plytka nie weszla na plansze |
+| `FLEE_CORNER_GAP_LINES` | 0.5 linie | oddech miedzy pasem tekstu a plytka |
+
+Plytka ucieczki siedzi w prawym gornym rogu **obszaru gry**, wyrownana do `width - margin` i
+zaczepiona pod pasem tekstu (`topBand`), a nie pod kompasem. Na waskich ekranach panel boczny jest
+wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 do ~0.7 skali, na
+1080x1920 do ~0.92.
 
 ## 6. Inwentarz elementow
 
@@ -420,8 +433,8 @@ na wezle. Poziome liny przechodza przez szczeline `SHIP_GAP_CELLS` i wchodza pod
 | Znacznik wejscia | `drawEntryMarker` | zloty pierscien z tlem w srodku |
 | Zaloga na siatce | `drawBoard` | cien + kolo w kolorze strony |
 | Strzalki | `drawControls` | plyta + trojkat na kazdy `JumpDirection` |
-| Prawy panel (kompas, ucieczka) | `drawControls` | prawa krawedz planszy + cala rezerwa z `PANEL_RESERVE_CELLS`, zmierzona do `width - margin` |
-| Przycisk ucieczki | `drawControls` / `drawFleeLabel` | plyta `FLEE_COLOR` + napis "UCIECZKA" (zmniejszany, gdy nie miesci sie w przycisku) |
+| Prawy panel (kompas) | `drawControls` | prawa krawedz planszy + cala rezerwa z `PANEL_RESERVE_CELLS`, zmierzona do `width - margin` |
+| Przycisk ucieczki | `drawControls` / `drawFleeLabel` | plytka `FLEE_COLOR` w prawym gornym rogu obszaru gry, tuz pod pasem tekstu + napis "UCIECZKA" (zmniejszany, gdy nie miesci sie w plytce) |
 | Napisy | `drawTexts` | 4 bloki tekstu + log + etykieta ucieczki |
 
 ## 7. Mapowanie elementow na model (`BattleState`)

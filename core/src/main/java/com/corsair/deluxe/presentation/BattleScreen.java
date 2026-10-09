@@ -89,14 +89,12 @@ public class BattleScreen extends ScreenAdapter {
     /** An arrow button is this share of the side panel wide, and this share of the free height tall. */
     private static final float COMPASS_BUTTON_WIDTH = 3.4f;
     private static final float COMPASS_BUTTON_HEIGHT = 0.24f;
-    /** The flee button: half its width is this many buttons, but never less than this share of the
-     * side panel; half its height is this many buttons, but never less than this many lines. */
-    private static final float FLEE_HALF_WIDTH_BUTTONS = 1.5f;
-    private static final float FLEE_HALF_WIDTH_OF_PANEL = 0.45f;
-    private static final float FLEE_HALF_HEIGHT_BUTTONS = 0.4f;
-    private static final float FLEE_HALF_HEIGHT_LINES = 0.75f;
-    /** How far under the compass the flee button sits, measured in button sizes. */
-    private static final float FLEE_DROP_BUTTONS = 2.2f;
+    /** The flee button: half its width and half its height are this many text lines. It sits in the
+     * top right corner of the scene, so it never grows wider than the side panel beside the board. */
+    private static final float FLEE_HALF_WIDTH_LINES = 3f;
+    private static final float FLEE_HALF_HEIGHT_LINES = 1.1f;
+    /** The air between the top text band and the flee button, measured in text lines. */
+    private static final float FLEE_CORNER_GAP_LINES = 0.5f;
     /** The whole scene stands on this colour, so no gap between the bands ever shows through. */
     private static final Color BACKDROP = color(20, 13, 18);
     /** Each side owns a colour, used for its texts, hatches, crew and waiting markers. */
@@ -519,10 +517,12 @@ public class BattleScreen extends ScreenAdapter {
         compassY = boardY + cell * BattleState.HEIGHT / 2f;
         buttonSize = Math.min(rightWidth / COMPASS_BUTTON_WIDTH, usableH * COMPASS_BUTTON_HEIGHT);
 
-        fleeHalfWidth = Math.max(buttonSize * FLEE_HALF_WIDTH_BUTTONS, rightWidth * FLEE_HALF_WIDTH_OF_PANEL);
-        fleeHalfHeight = Math.max(buttonSize * FLEE_HALF_HEIGHT_BUTTONS, lineHeight * FLEE_HALF_HEIGHT_LINES);
-        fleeX = compassX;
-        fleeY = Math.max(boardY + fleeHalfHeight, compassY - buttonSize * FLEE_DROP_BUTTONS);
+        // The flee button is a small plate hugging the label, pinned in the top right corner of the
+        // scene, just under the text band; the panel beside the board caps how wide it may grow.
+        fleeHalfWidth = Math.min(rightWidth / 2f, lineHeight * FLEE_HALF_WIDTH_LINES);
+        fleeHalfHeight = lineHeight * FLEE_HALF_HEIGHT_LINES;
+        fleeX = width - margin - fleeHalfWidth;
+        fleeY = height - margin - topBand - lineHeight * FLEE_CORNER_GAP_LINES - fleeHalfHeight;
     }
 
     @Override
