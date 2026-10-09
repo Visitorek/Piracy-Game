@@ -233,8 +233,10 @@ Poza sekcja 1, ale tez strojenie w czasie: `ENEMY_THINK_SECONDS` (0.8) - ile "my
 | `RIGGING_MIN_SKY` | 0.4 cell | minimalna wysokosc takielunku nad pokladem (dolna granica) |
 | `RIGGING_OVERFLOW` | 0.5 cell | o tyle takielunek wychodzi ponad gorna krawedz sceny (`sceneTop`) |
 | `MAST_POSITION` | 0.42 | gdzie stoi maszt na kadlubie (od krawedzi od siatki) |
-| `SAIL_HALF_WIDTH` | 1.5 | polowa szerokosci zagla wzgledem kadluba (pelna szerokosc = 3 kadluby) |
-| `SAIL_INSET` | 0.2 | sciagniecie naroznikow zagla |
+| `SAIL_HALF_WIDTH` | 1.5 | polowa szerokosci zagla wzgledem kadluba (pelna szerokosc = 3 kadluby); to szerokosc wzdluz rei, na glowie |
+| `SAIL_CLEW_INSET` | 0.06 | o tyle stopa jest wezsza od glowy - boki (liky) zbiegaja sie ku dolowi |
+| `SAIL_CLEW_RISE` | 0.2 | o tyle oba narozniki stopy (rogi szotowe) leza wyzej od najglebszego punktu stopy |
+| `SAIL_SEGMENTS` | 16 | na ile odcinkow dzielony jest sagi luk stopy |
 | `SAIL_BOTTOM` / `SAIL_TOP` | 0.15 / 0.95 | jedyny zagiel, udzialy wysokosci takielunku: stopa 3x wyzej nad pokladem, glowa poza scena |
 | `MAST_THICKNESS` / `MAST_TOP` | 0.176 cell / 1 | maszt: grubosc (gruby slup) i jak wysoko siega |
 
@@ -246,6 +248,12 @@ wysokosci (na bardzo ciasnym ekranie niebo jest nizsze niz ta wartosc, ale maska
 Zagiel jest **3x szerszy od kadluba** (`2 * SAIL_HALF_WIDTH = 3`), wiec nie miesci sie w widoku:
 na zewnetrznej stronie ucina go krawedz ekranu (7-24% szerokosci zalezy od rozdzielczosci),
 a na srodku planszy oba zagla zostawiaja 2.4-3.7 cell przerwy.
+
+Ksztalt zagla to **kwadratowy zagiel rejowy**: prosta glowa wzdluz rei, dwa liki zbiegajace sie ku
+dolowi (`SAIL_CLEW_INSET`) i stopa, ktora **sagi** miedzy rogami szotowymi - jak plachta wypelniona
+wiatrem, a nie plaski panel. Stopa to **szescienna krzywa Beziera** wychodzaca z kazdego rogu
+w kierunku jego wlasnego liku, wiec stopa wchodzi w lik **bez zalamania**, a rogi sa zaokraglone
+(zamiast ostrego "V" z dwoch prostych odcinkow, jak bylo wczesniej).
 
 Geometria statku (`drawShip`):
 
@@ -275,6 +283,30 @@ drawSailPanel(mastX, half, deckY + rig * SAIL_BOTTOM, deckY + rig * SAIL_TOP)
 rect(mastX - cell * MAST_THICKNESS / 2, deckY, cell * MAST_THICKNESS, rig * MAST_TOP)
 ```
 
+Ksztalt zagla (`drawSailPanel`) - wszystko liczone od `mastX`, `half`, `bottom`, `top`:
+
+```
+clewHalf = half * (1 - SAIL_CLEW_INSET)          // polowa szerokosci stopy
+clewY    = bottom + half * SAIL_CLEW_RISE        // wysokosc rogow szotowych
+lean     = half - clewHalf                       // o tyle lik zbiera sie ku dolowi
+drop     = top - clewY
+spread   = (clewY - bottom) / (0.75 * drop)      // rozstaw punktow kontrolnych
+c1       = (mastX + clewHalf - spread * lean, clewY - spread * drop)
+c2       = (mastX - clewHalf + spread * lean, clewY - spread * drop)
+```
+
+Stopa to krzywa Beziera od `(mastX + clewHalf, clewY)` do `(mastX - clewHalf, clewY)` z punktami
+kontrolnymi `c1`, `c2`. Dwa fakty, ktore z tego wynikaja i ktore trzeba zachowac przy zmianach:
+
+- w `t = 0.5` wysokosc krzywej to `clewY - 0.75 * spread * drop`, czyli dokladnie `bottom` - dlatego
+  `spread` ma wlasnie taki wzor: **najglebszy punkt stopy trafia idealnie w `SAIL_BOTTOM`**;
+- styczne w rogach maja kierunek `3 * spread * (-lean, -drop)`, czyli **dokladnie wzdloz liku** -
+  dlatego stopa wchodzi w lik bez zalamania, a rogi sa zaokraglone zamiast ostrych.
+
+Zagiel jest wypukly, wiec jest rysowany jako **wachlarz trojkatow** (`SAIL_SEGMENTS + 2` trojkatow,
+przy 16 odcinkach 18) ze srodka glowy - w tym punkcie pozniej siada maszt i zaslania szew.
+Zerowe alokacje, brak `polygon()`, brak triangulacji z uszami.
+
 Kolejnosc w `drawShip`: najpierw kadlub (`hullBand` x2), potem zagiel, na koncu maszt - maszt
 dzieli zagiel na dwie polowy. Zagiel jest rysowany od `deckY + rig * SAIL_BOTTOM` (stopa 3x wyzej
 nad pokladem) do `deckY + rig * SAIL_TOP`, a ze `rig` jest wieksze od `sky`, glowa zagla wypada
@@ -282,11 +314,17 @@ nad pokladem) do `deckY + rig * SAIL_TOP`, a ze `rig` jest wieksze od `sky`, glo
 widac tylko niski pas dolnej czesci zagla i gruby maszt wchodzacy w gore poza ekran.
 
 W praktyce (dla `NET_SCALE` od 1.0 do 1.2) niebo nad pokladem ma 1.16-2.00 cell, wiec widoczny pas
-zagla to okolo 79-81% tej wysokosci, a stopa zagla wisi 0.25-0.38 cell nad pokladem (bylo
-0.08-0.12 cell - dokladnie 3x wyzej). Sama szerokosc zagla to 2 * 1.5 = 3 szerokosci kadluba, czyli
-4.65-6.42 cell, a maszt ma 0.176 cell grubosci (na telefonie 1080x1920 to okolo 15-19 px, wczesniej
-ok. 4 px). Dolne narozniki zagla leza przy tym ponizej `sceneTop` (stopa + `SAIL_INSET * half`), wiec
-maska nie podcina dolnej krawedzi zagla - ucina tylko jego gore i wierzch masztu.
+zagla to okolo 79-81% tej wysokosci, a najglebszy punkt stopy wisi 0.25-0.38 cell nad pokladem
+(bylo 0.08-0.12 cell - dokladnie 3x wyzej). Sama szerokosc zagla to 2 * 1.5 = 3 szerokosci kadluba,
+czyli 4.65-6.42 cell, a maszt ma 0.176 cell grubosci (na telefonie 1080x1920 to okolo 15-19 px,
+wczesniej ok. 4 px). Rogi szotowe leza 0.30-0.64 cell nad najglebszym punktem stopy (39 px na
+1080x1920, 65 px na 1920x1080), a promien zaokraglenia rogow wychodzi 4.5-21 px (ok. 11 px na
+1080x1920). Na linii ciecia `sceneTop` zagiel ma jeszcze 4.58 cell szerokosci z 4.65 cell glowy
+(384 px z 390 px), bo lik zbiera tylko `SAIL_CLEW_INSET`; wczesniej glowa zwezala sie do szpica przy
+maszcie i na cieciu widac bylo ok. 81% szerokosci - **teraz "3 kadluby" sa prawdziwe takze w tym,
+co widac**. Najwieksze odchylenie 16-odcinkowej lamanej od prawdziwej krzywej to 0.9 px na
+1080x1920 i 1.4 px na 1920x1080, czyli niewidoczne. Maska nie podcina dolnej krawedzi zagla
+(rogi sa 0.42-0.91 cell ponizej `sceneTop`) - ucina tylko jego gore i wierzch masztu.
 
 ### 8. Siatka (lina i rozdarcia)
 
@@ -366,7 +404,7 @@ na wezle. Poziome liny przechodza przez szczeline `SHIP_GAP_CELLS` i wchodza pod
 | Siatka | `drawNet` / `strand` | 12 lin poziomych + 10 pionowych, kazda jako prostokat w obwodce |
 | Rozdarcia | `drawHole` | kolo `GAP_COLOR` + kolo tla + 6 luznych linii |
 | Kadlub | `drawShip` / `hullBand` | prostokat od pokladu do linii wody + symetryczne zwezenie do stepki |
-| Maszt i zagiel (sam dol) | `drawShip` / `drawSailPanel` | jeden zagiel 3x szerszy od kadluba (trapez z 4 trojkatow) + gruby maszt; oba ucinane od gory przez `drawSceneMask` |
+| Maszt i zagiel (sam dol) | `drawShip` / `drawSailPanel` | jeden zagiel 3x szerszy od kadluba (wachlarz 18 trojkatow: prosta glowa, liki zbierajace sie ku dolowi, sagi luk stopy) + gruby maszt; oba ucinane od gory przez `drawSceneMask` |
 | Kwadraty pokladu | `drawBoard` | pelny kwadrat `cell` w kolorze kadluba w kolumnach lukow |
 | Luki | `drawHatch` | plyta z ramka `HATCH_INSET`, kolor zalezny od stanu |
 | Slupek oczekujacych | `drawHatch` | jedno male kolo na pirata, od gory luku w dol |
@@ -418,7 +456,9 @@ na wezle. Poziome liny przechodza przez szczeline `SHIP_GAP_CELLS` i wchodza pod
 | Inny kolor kadluba / zagli | `HULL_COLOR`, `SAIL_COLOR` |
 | Szerszy lub wezszy kadlub | `HULL_TOP_CELLS` i `HULL_KEEL_CELLS` (oba, zeby zwezenie zostalo symetryczne) |
 | Wysokosc widocznego dolnego pasa zagla | `RIGGING_OVERFLOW`, `SAIL_BOTTOM`, `SAIL_TOP` |
-| Szeroki / waski zagiel | `SAIL_HALF_WIDTH` (1.5 = 3 kadluby), `SAIL_INSET` |
+| Szeroki / waski zagiel | `SAIL_HALF_WIDTH` (1.5 = 3 kadluby) |
+| Bardziej / mniej wybrzuszona stopa zagla | `SAIL_CLEW_RISE` (0 = stopa prosta, rogi na jej poziomie), `SAIL_CLEW_INSET` (0 = liki pionowe) |
+| Gladszy / bardziej kanciasty luk stopy | `SAIL_SEGMENTS` |
 | Grubszy / cienszy maszt | `MAST_THICKNESS` |
 | Inna wysokosc masztu nad pokladem | `MAST_TOP` |
 | Gdzie konczy sie widok (i takielunek) | `MAST_BAND` (niebo) - ciecie idzie po `sceneTop` |

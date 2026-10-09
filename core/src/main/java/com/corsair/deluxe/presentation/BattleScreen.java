@@ -261,17 +261,25 @@ public class BattleScreen extends ScreenAdapter {
     private static final float MAST_POSITION = 0.42f;
     /**
      * Half-width of the sail, as a share of the hull's width: the sail is twice this, so it comes out
-     * three hulls wide and runs off the edge of the screen on the seaward side.
+     * three hulls wide and runs off the edge of the screen on the seaward side. This is the width along
+     * the yard, at the head, which is as wide as the sail ever gets.
      */
     private static final float SAIL_HALF_WIDTH = 1.5f;
-    /** How far the sail is pulled in at its corners, as a share of its half-width. */
-    private static final float SAIL_INSET = 0.2f;
+    /** How much narrower the foot is than the head, as a share of the half-width: the leaches lean in. */
+    private static final float SAIL_CLEW_INSET = 0.06f;
+    /**
+     * How far the two clews - the bottom corners of the sail - sit above the deepest point of the foot,
+     * as a share of the half-width. Together with the curve of the foot this gives the sail its belly.
+     */
+    private static final float SAIL_CLEW_RISE = 0.2f;
     /**
      * The single sail, as shares of the rigging height above the deck: its foot hangs well clear of
      * the deck, and its head sits above the sky so the scene mask cuts the sail off flat at the top.
      */
     private static final float SAIL_BOTTOM = 0.15f;
     private static final float SAIL_TOP = 0.95f;
+    /** How many segments the sagging foot of the sail is cut into. */
+    private static final int SAIL_SEGMENTS = 16;
     /** The mast: how thick it is (a heavy pole, not a spar-like stick), and how far up it reaches. */
     private static final float MAST_THICKNESS = 0.176f;
     private static final float MAST_TOP = 1f;
@@ -997,7 +1005,8 @@ public class BattleScreen extends ScreenAdapter {
 
         // Rigging: only the foot of it is on screen. A heavy mast runs from the deck to the top of the
         // sky and on past it, carrying one square sail, three hulls wide, whose foot hangs clear of the
-        // deck; the scene mask then cuts mast, sail and everything above them off at the top of the sky.
+        // deck and sags between its clews; the scene mask then cuts mast, sail and everything above them
+        // off at the top of the sky.
         float sky = Math.max(cell * RIGGING_MIN_SKY, sceneTop - deckY);
         float rig = sky + cell * RIGGING_OVERFLOW;
         float mastX = near + out * span * MAST_POSITION;
@@ -1017,14 +1026,48 @@ public class BattleScreen extends ScreenAdapter {
         shapes.triangle(nearTop, yTop, farBottom, yBottom, nearBottom, yBottom);
     }
 
-    /** A square sail hung on the mast, drawn as the trapezoid its left and right halves make. */
+    /**
+     * One square sail hung on the mast: a straight head along the yard, two leaches leaning in to the
+     * clews, and a foot sagging between them, so the cloth reads as a sail filled with wind rather than
+     * a flat panel. The foot is a cubic curve that leaves each clew along its own leach, which both
+     * rounds the clews off and leaves no corner where the foot meets a leach.
+     */
     private void drawSailPanel(float mastX, float halfWidth, float bottom, float top) {
-        float inset = halfWidth * SAIL_INSET;
+        float clewHalf = halfWidth * (1f - SAIL_CLEW_INSET);
+        float clewY = bottom + halfWidth * SAIL_CLEW_RISE;
+        // The foot runs from one clew to the other, and with this control-point spread it bottoms out at
+        // exactly `bottom` halfway across, while the curve stays symmetric about the mast.
+        float lean = halfWidth - clewHalf;
+        float drop = top - clewY;
+        float spread = (clewY - bottom) / (0.75f * drop);
+        float startX = mastX + clewHalf;
+        float endX = mastX - clewHalf;
+        float c1x = startX - spread * lean;
+        float c1y = clewY - spread * drop;
+        float c2x = endX + spread * lean;
+        float c2y = clewY - spread * drop;
+
         shapes.setColor(SAIL_COLOR);
-        shapes.triangle(mastX - halfWidth, bottom + inset, mastX - halfWidth, top - inset, mastX, top);
-        shapes.triangle(mastX - halfWidth, bottom + inset, mastX, top, mastX, bottom);
-        shapes.triangle(mastX, bottom, mastX, top, mastX + halfWidth, top - inset);
-        shapes.triangle(mastX, bottom, mastX + halfWidth, top - inset, mastX + halfWidth, bottom + inset);
+        // A fan struck from the middle of the head, where the mast will cover the seam. The sail is
+        // convex, so the fan fills it exactly: the head itself is a line, and the triangles that carry
+        // the two corners under the yard sit either side of the ones that carry the foot.
+        shapes.triangle(mastX, top, mastX + halfWidth, top, startX, clewY);
+        float prevX = startX;
+        float prevY = clewY;
+        for (int i = 1; i <= SAIL_SEGMENTS; i++) {
+            float t = i / (float) SAIL_SEGMENTS;
+            float u = 1f - t;
+            float w0 = u * u * u;
+            float w1 = 3f * u * u * t;
+            float w2 = 3f * u * t * t;
+            float w3 = t * t * t;
+            float x = w0 * startX + w1 * c1x + w2 * c2x + w3 * endX;
+            float y = w0 * clewY + w1 * c1y + w2 * c2y + w3 * clewY;
+            shapes.triangle(mastX, top, prevX, prevY, x, y);
+            prevX = x;
+            prevY = y;
+        }
+        shapes.triangle(mastX, top, prevX, prevY, mastX - halfWidth, top);
     }
 
     /**
