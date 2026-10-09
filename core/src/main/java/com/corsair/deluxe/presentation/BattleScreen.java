@@ -249,32 +249,29 @@ public class BattleScreen extends ScreenAdapter {
     private static final float SHIP_FIT_MARGIN = 0.05f;
     /** The keel never dips below this height above the bottom of the scene. */
     private static final float KEEL_FLOOR = 0.02f;
-    /** How far the rigging rises above the deck, shrunk if the sky band above the board is shorter. */
-    private static final float RIGGING_CELLS = 1.15f;
-    /** The mast keeps at least this much sky, and takes at most this share of what is left over. */
+    /**
+     * The rigging runs from the deck up to the top of the sky band and a little past it, so only its
+     * foot shows: the scene mask wipes off everything above the sky, leaving the deck with the bottom
+     * of the mast and the lower part of one sail.
+     */
     private static final float RIGGING_MIN_SKY = 0.4f;
-    private static final float RIGGING_SKY_FIT = 0.90f;
+    /** How far past the top of the sky the rigging reaches, as a share of a cell. */
+    private static final float RIGGING_OVERFLOW = 0.5f;
     /** Where the mast stands on the hull, as a share of the hull's width from its net-side edge. */
     private static final float MAST_POSITION = 0.42f;
-    /** Half-width of a sail, as a share of the hull's width. */
-    private static final float SAIL_HALF_WIDTH = 0.21f;
-    /** How far a sail is pulled in at its corners, as a share of its half-width. */
+    /** Half-width of the sail, as a share of the hull's width. */
+    private static final float SAIL_HALF_WIDTH = 0.36f;
+    /** How far the sail is pulled in at its corners, as a share of its half-width. */
     private static final float SAIL_INSET = 0.2f;
-    /** The two sails, as shares of the rigging height above the deck. */
-    private static final float SAIL_LOWER_BOTTOM = 0.06f;
-    private static final float SAIL_LOWER_TOP = 0.42f;
-    private static final float SAIL_UPPER_BOTTOM = 0.46f;
-    private static final float SAIL_UPPER_TOP = 0.76f;
-    /** The spar the upper sail hangs from: its height, and how far it sticks out past the sails. */
-    private static final float SPAR_BOTTOM = 0.40f;
-    private static final float SPAR_HEIGHT = 0.09f;
-    private static final float SPAR_OVERHANG = 0.02f;
+    /**
+     * The single sail, as shares of the rigging height above the deck: its foot hangs low over the
+     * deck, and its head sits above the sky so the scene mask cuts the sail off flat at the top.
+     */
+    private static final float SAIL_BOTTOM = 0.05f;
+    private static final float SAIL_TOP = 0.95f;
     /** The mast: how thick it is, and how far up the rigging it reaches. */
     private static final float MAST_THICKNESS = 0.044f;
-    private static final float MAST_TOP = 0.94f;
-    /** The pennant at the top of the mast, as shares of the rigging height. */
-    private static final float PENNANT_BOTTOM = 0.78f;
-    private static final float PENNANT_MID = 0.89f;
+    private static final float MAST_TOP = 1f;
 
     // --- 8. Net (rope and torn openings) ---------------------------------------------------------
 
@@ -729,6 +726,7 @@ public class BattleScreen extends ScreenAdapter {
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         drawSeaAndSky();
         drawBoard();
+        drawSceneMask();
         drawControls();
         shapes.end();
 
@@ -950,9 +948,20 @@ public class BattleScreen extends ScreenAdapter {
     }
 
     /**
+     * Wipes off everything above the sky band with the backdrop colour. The rigging is drawn tall
+     * enough to leave the scene, so this is what cuts the masts and the sails off flat at the top of
+     * the sky, just under the text band. The sky itself stops at the same line, so the mask only ever
+     * covers bare backdrop.
+     */
+    private void drawSceneMask() {
+        shapes.setColor(BACKDROP);
+        shapes.rect(0f, sceneTop, width, Math.max(0f, height - sceneTop));
+    }
+
+    /**
      * The two ships the net is strung between. Each one is a wooden hull, symmetric about its own
      * centre, running from just above the top of the board down past its bottom into the water, with
-     * the mast, sail and pennant above it.
+     * the foot of its rigging standing on the deck.
      */
     private void drawShips() {
         drawShip(true);
@@ -983,25 +992,18 @@ public class BattleScreen extends ScreenAdapter {
         hullBand(near, near + out * keelInset, farDeck, farDeck - out * keelInset,
                 boardY, keelY, HULL_COLOR);
 
-        // Rigging: a mast with a square sail hung on it and the side's pennant at the top. It is sized to
-        // the sky left above the deck, so on a short screen the mast shortens instead of reaching the text.
+        // Rigging: only the foot of it is on screen. The mast runs from the deck to the top of the sky
+        // and on past it, carrying one square sail whose foot hangs low over the deck; the scene mask
+        // then cuts mast, sail and everything above them off at the top of the sky band.
         float sky = Math.max(cell * RIGGING_MIN_SKY, sceneTop - deckY);
-        float rig = Math.min(RIGGING_CELLS, sky / cell * RIGGING_SKY_FIT) * cell;
+        float rig = sky + cell * RIGGING_OVERFLOW;
         float mastX = near + out * span * MAST_POSITION;
         float half = span * SAIL_HALF_WIDTH;
 
-        drawSailPanel(mastX, half, deckY + rig * SAIL_LOWER_BOTTOM, deckY + rig * SAIL_LOWER_TOP);
-        drawSailPanel(mastX, half, deckY + rig * SAIL_UPPER_BOTTOM, deckY + rig * SAIL_UPPER_TOP);
+        drawSailPanel(mastX, half, deckY + rig * SAIL_BOTTOM, deckY + rig * SAIL_TOP);
 
-        // The spar the upper sail hangs from, then the mast splitting both sails, then the pennant.
         shapes.setColor(HULL_COLOR);
-        shapes.rect(mastX - half - cell * SPAR_OVERHANG, deckY + rig * SPAR_BOTTOM,
-                2f * half + cell * 2f * SPAR_OVERHANG, Math.max(1f, rig * SPAR_HEIGHT));
         shapes.rect(mastX - cell * MAST_THICKNESS / 2f, deckY, cell * MAST_THICKNESS, rig * MAST_TOP);
-
-        shapes.setColor(player ? PLAYER_COLOR : ENEMY_COLOR);
-        shapes.triangle(mastX, deckY + rig, mastX, deckY + rig * PENNANT_BOTTOM,
-                mastX - out * half, deckY + rig * PENNANT_MID);
     }
 
     /** One slice of the hull: a band between two heights, with both edges given at each height. */
