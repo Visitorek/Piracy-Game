@@ -108,10 +108,13 @@ public class BattleScreen extends ScreenAdapter {
     /** The deck sits this far above the top of the board, and the keel this far below its bottom. */
     private static final float DECK_LIFT_CELLS = 0.10f;
     private static final float KEEL_DROP_CELLS = 0.50f;
-    /** Thickness of a strand, how far it runs past the outer grid line, and its dark outline. */
+    /** The whole ship, deck squares included, stands this far off the net. */
+    private static final float SHIP_GAP_CELLS = 0.50f;
+    /** Thickness of a strand and its dark outline. */
     private static final float STRAND_THICKNESS = 0.04f;
-    private static final float STRAND_REACH = 0.45f;
     private static final float STRAND_EDGE = 0.012f;
+    /** The horizontal strands cross the gap to the hull and tuck a little way under it. */
+    private static final float STRAND_REACH = SHIP_GAP_CELLS + 0.06f;
     /** A torn opening: its radius, and how many slack strands cross it. */
     private static final float HOLE_RADIUS = 0.38f;
     private static final int HOLE_SPOKES = 6;
@@ -478,6 +481,14 @@ public class BattleScreen extends ScreenAdapter {
         return boardY + (BattleState.HEIGHT - 1 - y) * cell;
     }
 
+    /**
+     * How far a side's ship stands off the net. The deck squares, the hull and the ropes all
+     * measure from the same shift, so the gap always reads as part of the ship.
+     */
+    private float shipShift(BattleSide side) {
+        return (side == BattleSide.PLAYER ? -1f : 1f) * cell * SHIP_GAP_CELLS;
+    }
+
     private void draw() {
         ScreenUtils.clear(BACKDROP);
         camera.update();
@@ -683,8 +694,9 @@ public class BattleScreen extends ScreenAdapter {
             if (x != hatchColumnPlayer && x != hatchColumnEnemy) {
                 continue;
             }
+            // The deck squares are part of the ship, so they stand off the net with the hull.
+            float left = cellLeft(x) + shipShift(x == hatchColumnPlayer ? BattleSide.PLAYER : BattleSide.ENEMY);
             for (int y = 0; y < BattleState.HEIGHT; y++) {
-                float left = cellLeft(x);
                 float bottom = cellBottom(y);
                 shapes.setColor(HULL_COLUMN_COLOR);
                 shapes.rect(left, bottom, cell, cell);
@@ -718,14 +730,14 @@ public class BattleScreen extends ScreenAdapter {
     }
 
     private void drawShip(boolean player) {
-        // The hull's net-side edge sits just outside the outermost strand line, so that line of rope stays
-        // whole and the ship itself lies further out, away from the net. A narrow screen leaves the ship
-        // less room than the sketch asks for, so the hull shrinks rather than running off the edge.
+        // The ship stands half a cell off the net, so the horizontal strands show as ropes running from
+        // the net across to the hull. A narrow screen leaves the ship less room than the sketch asks
+        // for, so the hull shrinks rather than running off the edge.
         float edge = player ? cellLeft(1) : cellLeft(BattleState.WIDTH - 1);
         float out = player ? -1f : 1f;
-        float room = player ? edge - margin : width - margin - edge;
+        float near = edge + shipShift(player ? BattleSide.PLAYER : BattleSide.ENEMY);
+        float room = player ? near - margin : width - margin - near;
         float span = Math.max(cell, Math.min(cell * HULL_TOP_CELLS, room - cell * 0.05f));
-        float near = edge + out * cell * 0.03f;
         float deckY = boardY + cell * (BattleState.HEIGHT + DECK_LIFT_CELLS);
         // The water in front of the hull is shallow, so the keel stops at the bottom of the scene rather
         // than reaching into the log line underneath it.
@@ -784,7 +796,8 @@ public class BattleScreen extends ScreenAdapter {
     /**
      * The boarding net strung between the two hulls: one rope along every grid line, so a mesh opening
      * is exactly one cell wide and a unit stands in the middle of an opening, never on a knot where two
-     * strands cross. The openings show the sea and the sky behind them.
+     * strands cross. The openings show the sea and the sky behind them. The horizontal ropes run past
+     * the outermost grid lines, across the gap to the ships, and tuck under their hulls.
      */
     private void drawNet() {
         float thickness = cell * STRAND_THICKNESS;
@@ -880,8 +893,7 @@ public class BattleScreen extends ScreenAdapter {
         if (waiting <= 0) {
             return;
         }
-        float boardRight = boardX + cell * BattleState.WIDTH;
-        float cx = owner == BattleSide.PLAYER ? boardX - cell * 0.36f : boardRight + cell * 0.36f;
+        float cx = owner == BattleSide.PLAYER ? left - cell * 0.36f : left + cell * 1.36f;
         float top = bottom + cell * 0.82f;
         float step = cell * 0.22f;
         shapes.setColor(owner == BattleSide.PLAYER ? PLAYER_COLOR : ENEMY_COLOR);
