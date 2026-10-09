@@ -84,6 +84,8 @@ public class BattleScreen extends ScreenAdapter {
     /** The column of arrows beside the board takes this share of the width, and this many lines. */
     private static final float ARROW_ZONE_WIDTH = 0.14f;
     private static final float ARROW_ZONE_LINES = 2.4f;
+    /** The side panel takes this many cells of the scene box, so the controls stop crowding the board. */
+    private static final float PANEL_RESERVE_CELLS = 1f;
     /** An arrow button is this share of the side panel wide, and this share of the free height tall. */
     private static final float COMPASS_BUTTON_WIDTH = 3.4f;
     private static final float COMPASS_BUTTON_HEIGHT = 0.24f;
@@ -478,22 +480,32 @@ public class BattleScreen extends ScreenAdapter {
         float usableH = height - 2 * margin - topBand - bottomBand;
 
         // The scene is the board plus the sky the masts rise into and the water in front of the hulls,
-        // with half a hull of room beside the board for the ships and the reserve markers.
+        // with half a hull of room beside the board for the ships and the reserve markers. One cell of
+        // that box is handed to the side panel, so the board moves left instead of the controls crowding
+        // it; the panel is measured from the right edge of the board, so it takes the whole reserve.
         float sceneCells = BattleState.HEIGHT + MAST_BAND + SEA_DEPTH;
-        float fit = Math.max(1f, Math.min(usableH / sceneCells, usableW / (BattleState.WIDTH + 2f * SHIP_ROOM)));
+        float span = BattleState.WIDTH + 2f * SHIP_ROOM;
+        float boxW = usableW * span / (span + PANEL_RESERVE_CELLS);
+        float fit = Math.max(1f, Math.min(usableH / sceneCells, boxW / span));
         // The net is drawn NET_SCALE larger than that fit. The sky above the masts and the water in front
         // of the hulls give up the room, so the scene still fills the same box between the text bands; a
         // screen too narrow for the wider net keeps the plain fit.
-        float netScale = Math.max(1f,
-                Math.min(NET_SCALE, usableW / ((BattleState.WIDTH + 2f * SHIP_ROOM) * fit)));
+        float netScale = Math.max(1f, Math.min(NET_SCALE, boxW / (span * fit)));
+        // Where the board already sits at the readability floor, paying for the panel with cell size
+        // would force the text scale down a step, so there the reserve is given back instead.
+        if (fit * netScale < MIN_CELL) {
+            boxW = usableW;
+            fit = Math.max(1f, Math.min(usableH / sceneCells, boxW / span));
+            netScale = Math.max(1f, Math.min(NET_SCALE, boxW / (span * fit)));
+        }
         cell = fit * netScale;
         float bandCells = sceneCells / netScale - BattleState.HEIGHT;
         float mastCells = bandCells * MAST_BAND / (MAST_BAND + SEA_DEPTH);
         float seaCells = bandCells * SEA_DEPTH / (MAST_BAND + SEA_DEPTH);
         float boardWidth = cell * BattleState.WIDTH;
-        float sceneWidth = cell * (BattleState.WIDTH + 2f * SHIP_ROOM);
+        float sceneWidth = cell * span;
         sceneBottom = margin + bottomBand + (usableH - cell * (BattleState.HEIGHT + bandCells)) / 2f;
-        boardX = margin + (usableW - sceneWidth) / 2f + cell * SHIP_ROOM;
+        boardX = margin + (boxW - sceneWidth) / 2f + cell * SHIP_ROOM;
         boardY = sceneBottom + cell * seaCells;
         sceneTop = boardY + cell * (BattleState.HEIGHT + mastCells);
         // The horizon stays where it was, so the sky thins out evenly instead of the net rising into it.

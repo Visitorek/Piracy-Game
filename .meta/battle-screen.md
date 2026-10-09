@@ -60,21 +60,29 @@ ekranem powrotu (`returnScreen`). Wyjscie z ekranu idzie przez `BattleResult` (p
 5. `arrowZone = max(width * ARROW_ZONE_WIDTH, lineHeight * ARROW_ZONE_LINES)` - kolumna strzalek po
    prawej stronie planszy.
 6. `usableW = width - 2 * margin - arrowZone`, `usableH = height - 2 * margin - topBand - bottomBand`.
-7. Skala sceny:
-   * `sceneCells = HEIGHT + MAST_BAND + SEA_DEPTH` (11 + 2 + 1.3 = 14.3)
-   * `fit = max(1, min(usableH / sceneCells, usableW / (WIDTH + 2 * SHIP_ROOM)))`
-   * `netScale = max(1, min(NET_SCALE, usableW / ((WIDTH + 2 * SHIP_ROOM) * fit)))`
+7. Skala sceny. Pudelko sceny w oczkach to `span = WIDTH + 2 * SHIP_ROOM` (8 + 2.2 = 10.2),
+   a `PANEL_RESERVE_CELLS` oczek z niego idzie do prawego panelu, wiec plansza liczy sie z wezszego
+   pudelka `boxW`:
+   * `sceneCells = HEIGHT + MAST_BAND + SEA_DEPTH` (5 + 2 + 1.3 = 8.3)
+   * `boxW = usableW * span / (span + PANEL_RESERVE_CELLS)`
+   * `fit = max(1, min(usableH / sceneCells, boxW / span))`
+   * `netScale = max(1, min(NET_SCALE, boxW / (span * fit)))`
    * `cell = fit * netScale`
+   * **wyjatek**: gdy `fit * netScale < MIN_CELL`, rezerwa jest oddawana (`boxW = usableW`, a `fit`
+     i `netScale` liczone od nowa). Inaczej zaplate za panel zaplacilby krok skali tekstu, a na
+     waskim ekranie czytelna plansza jest wazniejsza niz luzny panel.
 8. `bandCells = sceneCells / netScale - HEIGHT` - nadwyzka sceny dzielona miedzy niebo (`MAST_BAND`)
    i morze (`SEA_DEPTH`) proporcjonalnie.
 9. `sceneBottom = margin + bottomBand + (usableH - cell * (HEIGHT + bandCells)) / 2`
-   `boardX = margin + (usableW - cell * (WIDTH + 2 * SHIP_ROOM)) / 2 + cell * SHIP_ROOM`
+   `boardX = margin + (boxW - cell * span) / 2 + cell * SHIP_ROOM`
    `boardY = sceneBottom + cell * seaCells`
    `sceneTop = boardY + cell * (HEIGHT + mastCells)`
 10. **Horyzont jest przypiety do stolu, nie do siatki**: `horizonY = sceneBottom + cell *
     (HORIZON_HEIGHT_CELLS + SEA_DEPTH) / netScale`. Dzieki temu powiekszenie siatki zabiera
     miejsce niebu i morzu, a nie przesuwa horyzontu.
-11. Prawa kolumna: `compassX = prawa krawedz planszy + rightWidth / 2`, `compassY = srodek planszy`,
+11. Prawa kolumna. `rightWidth` mierzy sie **od prawej krawedzi planszy do `width - margin`**, wiec
+    cala rezerwa z punktu 7 trafia wlasnie do panelu: `compassX = prawa krawedz planszy + rightWidth / 2`,
+    `compassY = srodek planszy`,
     `buttonSize = min(rightWidth / COMPASS_BUTTON_WIDTH, usableH * COMPASS_BUTTON_HEIGHT)`,
     a przycisk ucieczki z `FLEE_*` (patrz sekcja 10).
 
@@ -128,6 +136,7 @@ Wartosci w nawiasach to stan obecny. "Jedn." mowi, jak czytac liczbe: `cell` = u
 | `LOG_RESERVE` | tekst | - | najdluzszy wariant logu (paso dolu liczy sie dla niego) |
 | `LOG_BAND_LINES` / `LOG_BAND_PAD` | linie | 1.6 / 0.4 | minimalna wysokosc pasa logu i oddech nad logiem |
 | `ARROW_ZONE_WIDTH` / `ARROW_ZONE_LINES` | 0..1 / linie | 0.14 / 2.4 | szerokosc kolumny strzalek |
+| `PANEL_RESERVE_CELLS` | cell | 1 | ile oczek pudelka sceny oddac prawemu panelowi; plansza przesuwa sie w lewo zamiast sciskac sterowanie (oddawane, gdy `cell` spadlby pod `MIN_CELL`) |
 | `COMPASS_BUTTON_WIDTH` | - | 3.4 | przycisk = panel / to |
 | `COMPASS_BUTTON_HEIGHT` | 0..1 | 0.24 | ... ale nie wyzszy niz ta czesc wolnej wysokosci |
 | `FLEE_HALF_WIDTH_BUTTONS` / `FLEE_HALF_WIDTH_OF_PANEL` | - / 0..1 | 1.5 / 0.45 | polowa szerokosci przycisku ucieczki |
@@ -411,6 +420,7 @@ na wezle. Poziome liny przechodza przez szczeline `SHIP_GAP_CELLS` i wchodza pod
 | Znacznik wejscia | `drawEntryMarker` | zloty pierscien z tlem w srodku |
 | Zaloga na siatce | `drawBoard` | cien + kolo w kolorze strony |
 | Strzalki | `drawControls` | plyta + trojkat na kazdy `JumpDirection` |
+| Prawy panel (kompas, ucieczka) | `drawControls` | prawa krawedz planszy + cala rezerwa z `PANEL_RESERVE_CELLS`, zmierzona do `width - margin` |
 | Przycisk ucieczki | `drawControls` / `drawFleeLabel` | plyta `FLEE_COLOR` + napis "UCIECZKA" (zmniejszany, gdy nie miesci sie w przycisku) |
 | Napisy | `drawTexts` | 4 bloki tekstu + log + etykieta ucieczki |
 
@@ -418,7 +428,7 @@ na wezle. Poziome liny przechodza przez szczeline `SHIP_GAP_CELLS` i wchodza pod
 
 | Element ekranu | Zrodlo w modelu |
 |---|---|
-| Rozmiar planszy | `BattleState.WIDTH` = `HEIGHT` = 11 |
+| Rozmiar planszy | `BattleState.WIDTH` = 8, `BattleState.HEIGHT` = 5 |
 | Kolumna lukow gracza / wroga | `hatchColumn(PLAYER)` = 0, `hatchColumn(ENEMY)` = `WIDTH - 1` |
 | Wiersze z lukami | `HATCH_ROWS` = `{0, 1, 2, 3, 4}`; indeks luku z wiersza: `hatchIndexForRow(y)` |
 | Pole wejscia | `entryColumn(PLAYER)` - zaznaczone `drawEntryMarker` |
@@ -470,6 +480,7 @@ na wezle. Poziome liny przechodza przez szczeline `SHIP_GAP_CELLS` i wchodza pod
 | Spokojniejsze morze | `WAVE_ROWS`, `WAVE_SPAN`, `WAVE_SPAN_GROWTH`, `WAVE_GAP` |
 | Mniej lub wiecej blyskow slonca | `GLITTER_COUNT`, `GLITTER_ALPHA` |
 | Wiecej miejsca na tekst | `LOG_BAND_LINES`, `TEXT_GAP`, `MARGIN_*` |
+| Wiecej miejsca na sterowanie po prawej | `PANEL_RESERVE_CELLS` (1 = jedno oczko; plansza idzie w lewo, a panel rosnie o ta sama szerokosc) |
 | Wieksze strzalki | `COMPASS_BUTTON_WIDTH`, `COMPASS_BUTTON_HEIGHT`, `ARROW_ZONE_*` |
 | Inny przycisk ucieczki | `FLEE_*` |
 | Inne kolory stron | `PLAYER_COLOR`, `ENEMY_COLOR` |
