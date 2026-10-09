@@ -97,7 +97,7 @@ public class BattleScreen extends ScreenAdapter {
     private static final float FLEE_DROP_BUTTONS = 2.2f;
     /** The whole scene stands on this colour, so no gap between the bands ever shows through. */
     private static final Color BACKDROP = color(20, 13, 18);
-    /** Each side owns a colour, used for its texts, hatches, crew, waiting markers and pennant. */
+    /** Each side owns a colour, used for its texts, hatches, crew and waiting markers. */
     private static final Color PLAYER_COLOR = new Color(0.25f, 0.55f, 1f, 1f);
     private static final Color ENEMY_COLOR = new Color(0.9f, 0.2f, 0.2f, 1f);
 
@@ -259,18 +259,21 @@ public class BattleScreen extends ScreenAdapter {
     private static final float RIGGING_OVERFLOW = 0.5f;
     /** Where the mast stands on the hull, as a share of the hull's width from its net-side edge. */
     private static final float MAST_POSITION = 0.42f;
-    /** Half-width of the sail, as a share of the hull's width. */
-    private static final float SAIL_HALF_WIDTH = 0.36f;
+    /**
+     * Half-width of the sail, as a share of the hull's width: the sail is twice this, so it comes out
+     * three hulls wide and runs off the edge of the screen on the seaward side.
+     */
+    private static final float SAIL_HALF_WIDTH = 1.5f;
     /** How far the sail is pulled in at its corners, as a share of its half-width. */
     private static final float SAIL_INSET = 0.2f;
     /**
-     * The single sail, as shares of the rigging height above the deck: its foot hangs low over the
-     * deck, and its head sits above the sky so the scene mask cuts the sail off flat at the top.
+     * The single sail, as shares of the rigging height above the deck: its foot hangs well clear of
+     * the deck, and its head sits above the sky so the scene mask cuts the sail off flat at the top.
      */
-    private static final float SAIL_BOTTOM = 0.05f;
+    private static final float SAIL_BOTTOM = 0.15f;
     private static final float SAIL_TOP = 0.95f;
-    /** The mast: how thick it is, and how far up the rigging it reaches. */
-    private static final float MAST_THICKNESS = 0.044f;
+    /** The mast: how thick it is (a heavy pole, not a spar-like stick), and how far up it reaches. */
+    private static final float MAST_THICKNESS = 0.176f;
     private static final float MAST_TOP = 1f;
 
     // --- 8. Net (rope and torn openings) ---------------------------------------------------------
@@ -992,9 +995,9 @@ public class BattleScreen extends ScreenAdapter {
         hullBand(near, near + out * keelInset, farDeck, farDeck - out * keelInset,
                 boardY, keelY, HULL_COLOR);
 
-        // Rigging: only the foot of it is on screen. The mast runs from the deck to the top of the sky
-        // and on past it, carrying one square sail whose foot hangs low over the deck; the scene mask
-        // then cuts mast, sail and everything above them off at the top of the sky band.
+        // Rigging: only the foot of it is on screen. A heavy mast runs from the deck to the top of the
+        // sky and on past it, carrying one square sail, three hulls wide, whose foot hangs clear of the
+        // deck; the scene mask then cuts mast, sail and everything above them off at the top of the sky.
         float sky = Math.max(cell * RIGGING_MIN_SKY, sceneTop - deckY);
         float rig = sky + cell * RIGGING_OVERFLOW;
         float mastX = near + out * span * MAST_POSITION;
