@@ -35,10 +35,11 @@ ekranem powrotu (`returnScreen`). Wyjscie z ekranu idzie przez `BattleResult` (p
 * `boardX`, `boardY` - lewy dolny naroznik **pola (0,0)** planszy, czyli kolumny z lukami gracza.
 * `cellLeft(x) = boardX + x * cell` - lewa krawedz kolumny `x`.
 * `cellBottom(y) = boardY + (HEIGHT - 1 - y) * cell` - dolna krawedz wiersza `y`. Uwaga: **wiersz
-  y = 0 jest najwyzej**, a y = 10 (HEIGHT-1) najnizej, czyli Y rosnie w gore, a indeks wiersza w dol.
-* `shipShift(side) = (PLAYER ? -1 : +1) * cell * SHIP_GAP_CELLS` - o tyle statek i jego poklad sa
-  odsuniete od siatki. Ten sam shift obowiazuje kadlub, kwadraty pokladu i liny, dzieki czemu
-  szczelina zawsze czyta sie jako czesc statku.
+  y = 0 jest najwyzej**, a y = HEIGHT - 1 (= 4) najnizej, czyli Y rosnie w gore, a indeks wiersza
+  w dol.
+* `shipShift(side) = (PLAYER ? -1 : +1) * cell * SHIP_GAP_CELLS` - o tyle statek jest odsuniete od
+  siatki. Ten sam shift obowiazuje kadlub i luki, dzieki czemu szczelina zawsze czyta sie jako
+  czesc statku.
 * `sceneBottom`, `sceneTop` - dol i gora calej sceny (morze + plansza + niebo na maszty).
 * `horizonY` - linia horyzontu; dzieli scene na morze (ponizej) i niebo (powyzej).
 * `margin` - margines ramki ekranu.
@@ -113,7 +114,7 @@ ScreenUtils.clear(BACKDROP)
 shapes.begin(Filled)
   drawSeaAndSky()   gradient nieba (1 px na wiersz) -> gradient morza -> drawHaze -> drawSun
                     -> drawClouds -> drawWaves -> drawSunGlitter -> drawFoam
-  drawBoard()       drawNet -> drawShips -> kwadraty pokladu + drawHatch -> kola zalogi
+  drawBoard()       drawNet -> drawShips -> drawHatchColumn (gracz, wrog) -> kola zalogi
   drawSceneMask()   maska sceny: tlo od sceneTop do gory ekranu
   drawControls()    kompas (tarcza, obwodka, 3 strzalki kierunkow poza obwodka, igla, plytka GO!)
                     -> przycisk ucieczki
@@ -131,8 +132,8 @@ Kolejnosc w `drawBoard` nie jest przypadkowa:
 
 * siatka idzie pierwsza, bo jest **plansza** - statki rysowane na niej przykrywaja konce lin
   dokladnie tam, gdzie lina jest przywiazana do kadluba;
-* kwadraty pokladu ida **na** kadlub (kolumny lukow 0 i 10), wiec kadlub i takielunek zostaja
-  widoczne poza obrysem planszy;
+* kadlub idzie **na** siatke (kolumny lukow 0 i 7), wiec siatka i kadlub zostaja widoczne po
+  swojej stronie styku, a luki sa juz rysowane na burcie;
 * zaloga idzie na koncu, po lukach.
 
 `drawSceneMask()` idzie zaraz po `drawBoard()`, czyli **po** takielunku, a **przed** kompasem
@@ -263,29 +264,33 @@ Poza sekcja 1, ale tez strojenie w czasie: `ENEMY_THINK_SECONDS` (0.8) - ile "my
 
 | Parametr | Wartosc | Co robi |
 |---|---|---|
-| `HULL_COLOR` | 107, 66, 36 | jedyny kolor kadluba - ani pasow poszycia, ani linii wodnej |
+| `HULL_COLOR` | 107, 66, 36 | kolor burty - jedyny kolor poszycia, ani pasow, ani linii wodnej |
+| `STERN_SHADE` / `HULL_STERN_COLOR` | 0.86 / 92, 56, 30 | o tyle ciemniejsza jest sciana rufy, zeby krawedz narozna czytala sie bez obrysu |
+| `STERN_SHARE` | 0.5 | jaka czesc szerokosci kadluba zajmuje rufa; reszta to burta od strony sieci |
+| `DECK_LEAN_CELLS` / `WATERLINE_LEAN_CELLS` | 0.25 / 0.05 cell | o tyle poklad i linia wodna opadaja od rufy do dziobu |
 | `SAIL_COLOR` | 196, 186, 158 | kolor zagli |
 | `HULL_TOP_CELLS` | 2.14 cell | szerokosc kadluba na pokladzie |
 | `HULL_KEEL_CELLS` | 1.62 cell | szerokosc kadluba na stepce (wezsza o tyle samo z obu stron) |
 | `DECK_LIFT_CELLS` | 0.10 cell | o tyle poklad jest nad gorna krawedzia planszy |
 | `KEEL_DROP_CELLS` | 0.50 cell | o tyle stepka schodzi pod dolna krawedz planszy |
-| `SHIP_GAP_CELLS` | 0.50 cell | o pol oczka statek (kadlub, poklad, liny) stoi od siatki |
+| `SHIP_GAP_CELLS` | 0.50 cell | o pol oczka statek (kadlub i luki) stoi od siatki |
 | `SHIP_FIT_MARGIN` | 0.05 cell | tyle wolnego zostaje przed krawedzia ekranu, zanim kadlub sie zwezi |
 | `KEEL_FLOOR` | 0.02 cell | stepka nie schodzi nizej niz tyle nad dol sceny |
-| `RIGGING_MIN_SKY` | 0.4 cell | minimalna wysokosc takielunku nad pokladem (dolna granica) |
+| `RIGGING_MIN_SKY` | 0.4 cell | minimalna wysokosc takielunku nad stopa masztu (dolna granica) |
 | `RIGGING_OVERFLOW` | 0.5 cell | o tyle takielunek wychodzi ponad gorna krawedz sceny (`sceneTop`) |
-| `MAST_POSITION` | 0.42 | gdzie stoi maszt na kadlubie (od krawedzi od siatki) |
+| `MAST_POSITION` | 0.42 | gdzie stoi maszt na kadlubie (od krawedzi od siatki, czyli od dziobu) |
 | `SAIL_HALF_WIDTH` | 1.5 | polowa szerokosci zagla wzgledem kadluba (pelna szerokosc = 3 kadluby); to szerokosc wzdluz rei, na glowie |
 | `SAIL_CLEW_INSET` | 0.06 | o tyle stopa jest wezsza od glowy - boki (liky) zbiegaja sie ku dolowi |
 | `SAIL_CLEW_RISE` | 0.2 | o tyle oba narozniki stopy (rogi szotowe) leza wyzej od najglebszego punktu stopy |
 | `SAIL_SEGMENTS` | 16 | na ile odcinkow dzielony jest sagi luk stopy |
-| `SAIL_BOTTOM` / `SAIL_TOP` | 0.15 / 0.95 | jedyny zagiel, udzialy wysokosci takielunku: stopa 3x wyzej nad pokladem, glowa poza scena |
+| `SAIL_BOTTOM` / `SAIL_TOP` | 0.15 / 0.95 | jedyny zagiel, udzialy wysokosci takielunku od stopy masztu: stopa 3x wyzej, glowa poza scena |
 | `MAST_THICKNESS` / `MAST_TOP` | 0.176 cell / 1 | maszt: grubosc (gruby slup) i jak wysoko siega |
 
 Zagiel, reja i choragiewka zniknely: zostaje sam dol takielunku. Wysokosc takielunku to **cale niebo
-nad pokladem plus `RIGGING_OVERFLOW`**, a `drawSceneMask()` ucina wszystko powyzej `sceneTop`, wiec
-widac tylko podstawe masztu i dolna czesc zagla. `RIGGING_MIN_SKY` dziala juz tylko jako podloga
-wysokosci (na bardzo ciasnym ekranie niebo jest nizsze niz ta wartosc, ale maska i tak utnie gore).
+nad stopa masztu plus `RIGGING_OVERFLOW`**, a `drawSceneMask()` ucina wszystko powyzej `sceneTop`,
+wiec widac tylko podstawe masztu i dolna czesc zagla. `RIGGING_MIN_SKY` dziala juz tylko jako
+podloga wysokosci (na bardzo ciasnym ekranie niebo jest nizsze niz ta wartosc, ale maska i tak utnie
+gore).
 
 Zagiel jest **3x szerszy od kadluba** (`2 * SAIL_HALF_WIDTH = 3`), wiec nie miesci sie w widoku:
 na zewnetrznej stronie ucina go krawedz ekranu (7-24% szerokosci zalezy od rozdzielczosci),
@@ -302,28 +307,62 @@ Geometria statku (`drawShip`):
 ```
 edge   = cellLeft(1)                    // gracz;  cellLeft(WIDTH-1)  // wrog
 out    = -1                             // gracz;  +1                 // wrog
-near   = edge + shipShift(side)          // burta od strony siatki
+near   = edge + shipShift(side)          // dziob - krawedz kadluba od strony sieci
 room   = gracz ? near - margin : width - margin - near
 span   = max(cell, min(cell * HULL_TOP_CELLS, room - cell * SHIP_FIT_MARGIN))
 deckY  = boardY + cell * (HEIGHT + DECK_LIFT_CELLS)
 keelY  = max(sceneBottom + cell * KEEL_FLOOR, boardY - cell * KEEL_DROP_CELLS)
-farDeck= near + out * span
+far    = near + out * span               // rufa - zewnetrzna krawedz kadluba
+side   = span * (1 - STERN_SHARE)        // szerokosc burty
+corner = near + out * side               // krawedz narozna rufy i burty
+leanDeck  = cell * DECK_LEAN_CELLS
+leanWater = cell * WATERLINE_LEAN_CELLS
+deckCorner  = deckY  - leanDeck  * STERN_SHARE      deckBow  = deckY  - leanDeck
+waterCorner = boardY - leanWater * STERN_SHARE      waterBow = boardY - leanWater
+keelCorner  = keelY  - leanWater * STERN_SHARE      keelBow  = keelY  - leanWater
 keelInset = span * (1 - HULL_KEEL_CELLS / HULL_TOP_CELLS) / 2
+keelOut   = far  - out * keelInset
+keelMid   = keelOut - out * (span - 2 * keelInset) * STERN_SHARE
+keelIn    = near + out * keelInset
 ```
 
-Kadlub to dwa wywolania `hullBand`: prostokat od `deckY` do `boardY` i symetryczne zwezenie od
-`boardY` do `keelY`. Obie strony zbiegaja sie o ten sam `keelInset`, wiec sylwetka jest symetryczna
-wzgledem wlasnego srodka. Takielunek - **tylko jego dol jest widoczny**:
+Kadlub to **dwie sciany po dwa czworokaty** (`hullQuad`, czyli dwa trojkaty na sciane - dzisiejszy
+`hullBand` obslugiwal tylko poziome pasy):
 
 ```
-sky    = max(cell * RIGGING_MIN_SKY, sceneTop - deckY)   // niebo nad pokladem
+burta (HULL_COLOR):   nad woda  corner/deckCorner - near/deckBow - near/waterBow - corner/waterCorner
+                      pod woda  corner/waterCorner - near/waterBow - keelIn/keelBow - keelMid/keelCorner
+rufa  (HULL_STERN_COLOR, rysowana druga, na wierzchu):
+                      nad woda  far/deckY - corner/deckCorner - corner/waterCorner - far/boardY
+                      pod woda  far/boardY - corner/waterCorner - keelMid/keelCorner - keelOut/keelY
+```
+
+Dzieki temu statek czyta sie lekko izometrycznie (3/4): widac **cala rufe** (waska sciana na
+zewnetrznej krawedzi) i **burte** od strony sieci, a krawedz narozna jest pionowa. Dwa fakty,
+ktore z tego wynikaja:
+
+- `keelMid` wypada **dokladnie pod** `corner` (oba sa w `span * (1 - STERN_SHARE)` od `near`),
+  dlatego krawedz narozna jest jedna pionowa linia od pokladu do stepki. Zalezy to od
+  `STERN_SHARE = 0.5` - przy innej wartosci wzor `keelMid` trzeba zmienic razem z nim;
+- obie sciany maja te sama wysokosc (`deckY - keelY`), bo `leanWater` dziala tak samo na obu
+  koncach kazdej z nich. Wysokosc rufy na ekranie **nie zmienila sie** wzgledem kadluba sprzed
+  skosu - zmienilo sie tylko to, ze dziob jest o `DECK_LEAN_CELLS` nizszy.
+
+Takielunek - **tylko jego dol jest widoczny**:
+
+```
+sky    = max(cell * RIGGING_MIN_SKY, sceneTop - mastY)   // niebo nad stopa masztu
 rig    = sky + cell * RIGGING_OVERFLOW                   // takielunek siega ponad scene
 mastX  = near + out * span * MAST_POSITION
+mastY  = deckY - leanDeck * (1 - MAST_POSITION)          // stopa na opadajacej linii pokladu
 half   = span * SAIL_HALF_WIDTH
 
-drawSailPanel(mastX, half, deckY + rig * SAIL_BOTTOM, deckY + rig * SAIL_TOP)
-rect(mastX - cell * MAST_THICKNESS / 2, deckY, cell * MAST_THICKNESS, rig * MAST_TOP)
+drawSailPanel(mastX, half, mastY + rig * SAIL_BOTTOM, mastY + rig * SAIL_TOP)
+rect(mastX - cell * MAST_THICKNESS / 2, mastY, cell * MAST_THICKNESS, rig * MAST_TOP)
 ```
+
+Maszt zostaje **pionowy** - opada tylko jego stopa, razem z pokladem. Zagiel bazuje na wysokosci
+stopy masztu, wiec przy `MAST_POSITION = 0.42` siada ok. `0.15 cell` nizej niz przed skosem.
 
 Ksztalt zagla (`drawSailPanel`) - wszystko liczone od `mastX`, `half`, `bottom`, `top`:
 
@@ -349,16 +388,18 @@ Zagiel jest wypukly, wiec jest rysowany jako **wachlarz trojkatow** (`SAIL_SEGME
 przy 16 odcinkach 18) ze srodka glowy - w tym punkcie pozniej siada maszt i zaslania szew.
 Zerowe alokacje, brak `polygon()`, brak triangulacji z uszami.
 
-Kolejnosc w `drawShip`: najpierw kadlub (`hullBand` x2), potem zagiel, na koncu maszt - maszt
-dzieli zagiel na dwie polowy. Zagiel jest rysowany od `deckY + rig * SAIL_BOTTOM` (stopa 3x wyzej
-nad pokladem) do `deckY + rig * SAIL_TOP`, a ze `rig` jest wieksze od `sky`, glowa zagla wypada
-**powyzej** `sceneTop` i `drawSceneMask()` ucina ja plasko razem z masztem. Efekt: nad pokladem
-widac tylko niski pas dolnej czesci zagla i gruby maszt wchodzacy w gore poza ekran.
+Kolejnosc w `drawShip`: najpierw kadlub (burta, potem rufa - `hullQuad` x4), potem zagiel, na koncu
+maszt - maszt dzieli zagiel na dwie polowy. Zagiel jest rysowany od `mastY + rig * SAIL_BOTTOM`
+(stopa 3x wyzej nad stopa masztu) do `mastY + rig * SAIL_TOP`, a ze `rig` jest wieksze od `sky`,
+glowa zagla wypada **powyzej** `sceneTop` i `drawSceneMask()` ucina ja plasko razem z masztem.
+Efekt: nad pokladem widac tylko niski pas dolnej czesci zagla i gruby maszt wchodzacy w gore poza
+ekran.
 
-W praktyce (dla `NET_SCALE` od 1.0 do 1.2) niebo nad pokladem ma 1.16-2.00 cell, wiec widoczny pas
-zagla to okolo 79-81% tej wysokosci, a najglebszy punkt stopy wisi 0.25-0.38 cell nad pokladem
-(bylo 0.08-0.12 cell - dokladnie 3x wyzej). Sama szerokosc zagla to 2 * 1.5 = 3 szerokosci kadluba,
-czyli 4.65-6.42 cell, a maszt ma 0.176 cell grubosci (na telefonie 1080x1920 to okolo 15-19 px,
+W praktyce (dla `NET_SCALE` od 1.0 do 1.2) niebo nad stopa masztu ma 1.16-2.00 cell, wiec widoczny
+pas zagla to okolo 79-81% tej wysokosci, a najglebszy punkt stopy wisi 0.25-0.38 cell nad stopa
+masztu (bylo 0.08-0.12 cell - dokladnie 3x wyzej). Sama szerokosc zagla to 2 * 1.5 = 3 szerokosci
+kadluba, czyli 4.65-6.42 cell, a maszt ma 0.176 cell grubosci (na telefonie 1080x1920 to okolo
+15-19 px,
 wczesniej ok. 4 px). Rogi szotowe leza 0.30-0.64 cell nad najglebszym punktem stopy (39 px na
 1080x1920, 65 px na 1920x1080), a promien zaokraglenia rogow wychodzi 4.5-21 px (ok. 11 px na
 1080x1920). Na linii ciecia `sceneTop` zagiel ma jeszcze 4.58 cell szerokosci z 4.65 cell glowy
@@ -387,16 +428,18 @@ co widac**. Najwieksze odchylenie 16-odcinkowej lamanej od prawdziwej krzywej to
 Geometria siatki (`drawNet`):
 
 ```
-left   = cellLeft(1),  right = cellLeft(WIDTH - 1)      // linie 1..10
+left   = cellLeft(1),  right = cellLeft(WIDTH - 1)      // linie 1..7
 bottom = cellBottom(HEIGHT - 1),  top = cellBottom(0) + cell
-liny poziome:  HEIGHT + 1 = 12 linii, od left - reach, dlugosc right - left + 2 * reach
-liny pionowe:  WIDTH - 1  = 10 linii, na cellLeft(1..10)
+liny poziome:  HEIGHT + 1 = 6 linii, od left - reach, dlugosc right - left + 2 * reach
+liny pionowe:  WIDTH - 1  = 7 linii, na cellLeft(1..7)
 ```
 
-Czyli **siatka ma 9 oczek w poziomie i 11 w pionie**, a kolumny z lukami (0 i 10) leza poza nia,
+Czyli **siatka ma 6 oczek w poziomie i 5 w pionie**, a kolumny z lukami (0 i 7) leza poza nia,
 na kadlubach. Jedno oczko siatki = jedno pole planszy, jednostka stoi zawsze w srodku oczka, nigdy
 na wezle. Poziome liny przechodza przez szczeline `SHIP_GAP_CELLS` i wchodza pod kadlub o
-`STRAND_TUCK`, dlatego szczelina czyta sie jako lina, a nie jako blad ukladu.
+`STRAND_TUCK`, dlatego szczelina czyta sie jako lina, a nie jako blad ukladu. Luki sa teraz na
+**burcie** - przesuniete na jej tylna czesc (patrz punkt 9), ale linki nadal koncza sie w tych
+samych rzedach, wiec siatka nie wymagala zadnej zmiany.
 
 ### 9. Luki, zaloga i znaczniki
 
@@ -405,7 +448,9 @@ na wezle. Poziome liny przechodza przez szczeline `SHIP_GAP_CELLS` i wchodza pod
 | `CREW_SHADOW_RADIUS` / `CREW_SHADOW_COLOR` | 0.38 cell / czarny 0.6 | cien pod piratem na siatce |
 | `CREW_RADIUS` | 0.32 cell | promien pirata na siatce |
 | `CREW_SEGMENTS` | 24 | ile segmentow ma kolo pirata |
-| `HATCH_INSET` | 0.12 cell | ramka pola wokol plyty luku |
+| `HATCH_INSET` | 0.12 cell | ramka pola wokol plyty luku (gorna granica boku luku na szerokich ekranach) |
+| `HATCH_WALL_SHARE` | 0.7 | jaka czesc szerokosci burty zajmuje luk |
+| `HATCH_REAR_INSET` | 0.12 | o tyle szerokosci burty luk jest odsuniety od krawedzi naroznej (tylnej) |
 | `HATCH_DISABLED_COLOR` | 0.35, 0.35, 0.35 | zniszczony luk |
 | `HATCH_OPEN_COLOR` | 0.98, 0.79, 0.28 | zloty kolor otwartego luku |
 | `HATCH_OPEN_BRIGHTNESS` / `HATCH_OPEN_PULSE` | 0.85 / 0.15 | otwarty luk pulsuje miedzy tymi jasnosciami |
@@ -418,6 +463,28 @@ na wezle. Poziome liny przechodza przez szczeline `SHIP_GAP_CELLS` i wchodza pod
 | `HATCH_PULSE_BASE` / `HATCH_PULSE_SWING` / `HATCH_PULSE_SPEED` | 0.65 / 0.35 / 5 | puls gotowego luku: `base + swing * sin(t * speed)` |
 | `ENTRY_MARKER_RADIUS` / `ENTRY_MARKER_INNER` | 0.44 / 0.34 cell | pierscien pokazujacy pole wejscia |
 | `ENTRY_MARKER_SEGMENTS` | 24 | ile segmentow ma pierscien |
+
+Geometria lukow (`drawHatchColumn`):
+
+```
+wall    = span * (1 - STERN_SHARE)                     // szerokosc burty (patrz punkt 7)
+size    = min(wall * HATCH_WALL_SHARE, cell * (1 - 2 * HATCH_INSET))
+corner  = hullNear(player) + out * wall                 // krawedz narozna burty i rufy
+rear    = corner - out * wall * HATCH_REAR_INSET        // tylna krawedz luku
+hatchX  = player ? rear : rear - size                   // lewy brzeg prostokata luku
+hatchY  = cellBottom(y) + (cell - size) / 2             // wysrodkowany w swoim rzedzie
+```
+
+Luki stoja wiec **na burcie, przy rufie** - blizej krawedzi naroznej niz srodka burty - i sa
+prostokatami (bez skosu), tak jak sciana, na ktorej leza. Bok luku to `0.7` szerokosci burty, wiec
+na waskich ekranach (kadlub 1.55 cell) wychodzi ok. `0.54 cell`, a na szerokich (kadlub 2.14 cell)
+`HATCH_INSET` juz ogranicza bok do `0.76 cell` - czyli praktycznie dzisiejszy rozmiar. Slupek
+oczekujacych znacznikow stoi na zewnatrz luku, od strony rufy (`WAITING_MARKER_INSET`), a nie jak
+kiedys na srodku kolumny lukow.
+
+Obszar dotyku lukow w `handleInput` nie zmienil sie (pol oczka z kazdej strony kolumny lukow plus
+`HATCH_TAP_REACH`), bo przesuniete luki nadal mieszcza sie w nim z zapasem - sprawdzone rachunkiem
+dla kadluba 1.55 i 2.14 oczka szerokosci.
 
 ### 10. Sterowanie
 
@@ -499,11 +566,10 @@ wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 d
 | Piana | `drawFoam` | 70 kresek w pierwszym planie |
 | Siatka | `drawNet` / `strand` | 12 lin poziomych + 10 pionowych, kazda jako prostokat w obwodce |
 | Rozdarcia | `drawHole` | kolo `GAP_COLOR` + kolo tla + 6 luznych linii |
-| Kadlub | `drawShip` / `hullBand` | prostokat od pokladu do linii wody + symetryczne zwezenie do stepki |
-| Maszt i zagiel (sam dol) | `drawShip` / `drawSailPanel` | jeden zagiel 3x szerszy od kadluba (wachlarz 18 trojkatow: prosta glowa, liki zbierajace sie ku dolowi, sagi luk stopy) + gruby maszt; oba ucinane od gory przez `drawSceneMask` |
-| Kwadraty pokladu | `drawBoard` | pelny kwadrat `cell` w kolorze kadluba w kolumnach lukow |
-| Luki | `drawHatch` | plyta z ramka `HATCH_INSET`, kolor zalezny od stanu |
-| Slupek oczekujacych | `drawHatch` | jedno male kolo na pirata, od gory luku w dol |
+| Kadlub (dwie sciany) | `drawShip` / `hullQuad` | burta (`HULL_COLOR`) i rufa (`HULL_STERN_COLOR`), kazda jako dwa czworokaty: od pokladu do linii wodnej i od linii wodnej do stepki; poklad, linia wodna i stepka opadaja od rufy do dziobu |
+| Maszt i zagiel (sam dol) | `drawShip` / `drawSailPanel` | jeden zagiel 3x szerszy od kadluba (wachlarz 18 trojkatow: prosta glowa, liki zbierajace sie ku dolowi, sagi luk stopy) + gruby maszt stojacy na opadajacej linii pokladu; oba ucinane od gory przez `drawSceneMask` |
+| Luki | `drawHatchColumn` / `drawHatch` | plyta z ramka `HATCH_INSET`, na burcie przy rufie, kolor zalezny od stanu |
+| Slupek oczekujacych | `drawHatch` | jedno male kolo na pirata, od gory luku w dol, na zewnatrz luku od strony rufy |
 | Znacznik wejscia | `drawEntryMarker` | zloty pierscien z tlem w srodku |
 | Zaloga na siatce | `drawBoard` | cien + kolo w kolorze strony |
 | Kompas | `drawControls` / `drawCompassLabels` | tarcza + obwodka + 3 strzalki kierunkow poza obwodka (trzy mozliwe kierunki igly) + igla + plytka "GO!" + litery N/E/S/W i napis "GO!" |
@@ -553,6 +619,10 @@ wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 d
 | Wieksze rozdarcia | `HOLE_RADIUS`, ewentualnie `HOLE_SPOKES` |
 | Inny kolor kadluba / zagli | `HULL_COLOR`, `SAIL_COLOR` |
 | Szerszy lub wezszy kadlub | `HULL_TOP_CELLS` i `HULL_KEEL_CELLS` (oba, zeby zwezenie zostalo symetryczne) |
+| Mniej / bardziej izometryczny statek | `STERN_SHARE` (rufa; powyzej 0.5 trzeba tez poprawic `keelMid`, zeby krawedz narozna zostala pionowa), `DECK_LEAN_CELLS`, `WATERLINE_LEAN_CELLS` |
+| Wyrazniejsza / slabsza krawedz narozna | `STERN_SHADE` |
+| Inne polozenie lukow na burcie | `HATCH_REAR_INSET` (blizej / dalej rufy) |
+| Wieksze / mniejsze luki | `HATCH_WALL_SHARE`, `HATCH_INSET` |
 | Wysokosc widocznego dolnego pasa zagla | `RIGGING_OVERFLOW`, `SAIL_BOTTOM`, `SAIL_TOP` |
 | Szeroki / waski zagiel | `SAIL_HALF_WIDTH` (1.5 = 3 kadluby) |
 | Bardziej / mniej wybrzuszona stopa zagla | `SAIL_CLEW_RISE` (0 = stopa prosta, rogi na jej poziomie), `SAIL_CLEW_INSET` (0 = liki pionowe) |
@@ -624,7 +694,8 @@ Wynik trafia do `_viz/out/`:
   bardzo wysoki), sam ekran bitwy bez zadnych dodatkow;
 * `out/measurements/*.png` - te same rozdzielczosci z **nakladka pomiarowa**: ramka marginesu,
   obrys sceny i planszy, siatka oczek, pasy tekstu, rezerwa na panel po prawej, strefa strzalek,
-  linia horyzontu, obrysy kadluba, zagla i masztu obu statkow, obrys kompasu z jego plytka "GO!",
+  linia horyzontu, obrysy obu scian kadluba (burta i rufa) i prostokatow wszystkich pieciu lukow
+  obu statkow, obrys zagla i masztu, obrys kompasu z jego plytka "GO!",
   igla, strzalki kierunkow, krzyzem liter i etykieta z liczbami w pikselach;
 * `out/states/*.png` - cztery stany bitwy (`start`, `mid`, `victory`, `defeat`) w 1920x1080;
 * `out/gallery.png` - zbiorcza plansza kontaktowa ze wszystkich zrzutow;
@@ -648,13 +719,16 @@ Inne tryby (pojedynczo) wybiera sie wlasciwoscia `-PvizMain=`, np. `-PvizMain=vi
 * **rezerwa na panel** - o ile pikseli plansza idzie w lewo dzieki `PANEL_RESERVE_CELLS` oraz
   porownanie `cell` z rezerwa i bez niej (uwaga: przy waskich ekranach dziala warunek zwrotny
   `MIN_CELL`, wiec rezerwa kosztuje 0 px - zestawienie to pokazuje);
-* **oba statki** - `near`/`far`/`room`, szerokosc kadluba w px i w `cell`, `deckY`, `keelY`,
-  szerokosc zagla, wysokosc zawieszenia zagla nad pokladem, wysokosc obciecia maska, szerokosc
-  masztu;
-* **pomiar z pikseli** - niezalezny od modelu skan koloru `HULL_COLOR` na gotowym obrazie, ktory
-  mierzy kadlub i maszt. Zgodnosc z liczbami wyliczonymi oznacza, ze i wzory, i rysowanie sa
-  w porzadku. Roznica kilku pikseli na krawedziach (antyaliasing i zaokraglenie do piksela) jest
-  normalna, ale pomiar przyciety krawedzia ekranu jest oznaczany jako `UWAGA`;
+* **oba statki** - `near`/`far`/`room`, szerokosc kadluba w px i w `cell`, szerokosc burty i rufy,
+  `x` krawedzi naroznej, `deckY`, `keelY`, opad pokladu (rufa vs dziob), bok luku i jego zakres
+  `x` (plus kontrola, czy luk miesci sie w kadlubie), szerokosc zagla, wysokosc zawieszenia zagla
+  nad stopa masztu, wysokosc obciecia maska, szerokosc masztu;
+* **pomiar z pikseli** - niezalezny od modelu skan koloru na gotowym obrazie, ktory mierzy kadlub
+  (`HULL_COLOR`), obie sciany (`HULL_COLOR` i `HULL_STERN_COLOR`), gorna krawedz burty przy rufie
+  i przy dziobie (z tego wychodzi zmierzony opad pokladu) oraz maszt. Zgodnosc z liczbami
+  wyliczonymi oznacza, ze i wzory, i rysowanie sa w porzadku. Roznica kilku pikseli na krawedziach
+  (antyaliasing i zaokraglenie do piksela) jest normalna, ale pomiar przyciety krawedzia ekranu
+  jest oznaczany jako `UWAGA`;
 * **sterowanie** - `compassX`, `compassY`, `compassRadius`, promien tarczy "GO!" (`COMPASS_GO_RADIUS`),
   promien okregu liter (`COMPASS_LETTER_RING`), rozmiar napisu (`COMPASS_LABEL_SIZE`), dlugosc i
   szerokosc igly (`igla dl./szer.`), zasieg grota strzalki (`grot strzalki R`), polowa szerokosci

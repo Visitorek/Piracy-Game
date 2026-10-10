@@ -254,10 +254,21 @@ public class BattleScreen extends ScreenAdapter {
     // --- 7. Ships (hull and rigging) -------------------------------------------------------------
 
     /**
-     * The hull: one piece of timber from the gunwale down past the waterline, and the deck squares the
-     * hatches sit in. The ships are drawn over the ends of the net, so the strands end on the hull.
+     * The hull: one piece of timber from the gunwale down past the waterline, split into the two walls
+     * the view shows of it. The ships are drawn over the ends of the net, so the strands end on the hull.
      */
     private static final Color HULL_COLOR = color(107, 66, 36);
+    /**
+     * The stern wall is a shade darker than the side, so the corner where the two walls meet reads
+     * without an outline down the hull.
+     */
+    private static final float STERN_SHADE = 0.86f;
+    private static final Color HULL_STERN_COLOR = shade(HULL_COLOR, STERN_SHADE);
+    /** How much of the hull's width is the stern; the side facing the enemy takes the rest. */
+    private static final float STERN_SHARE = 0.5f;
+    /** How far the deck and the waterline fall away from the stern to the bow, as a share of a cell. */
+    private static final float DECK_LEAN_CELLS = 0.25f;
+    private static final float WATERLINE_LEAN_CELLS = 0.05f;
     /** The sail, hung on the mast above the hull. */
     private static final Color SAIL_COLOR = color(196, 186, 158);
     /** How wide the hull is at the deck and at the keel, with both sides leaning in by the same amount. */
@@ -342,6 +353,12 @@ public class BattleScreen extends ScreenAdapter {
     private static final int CREW_SEGMENTS = 24;
     /** How much of a cell the hatch plate leaves as a frame around itself. */
     private static final float HATCH_INSET = 0.12f;
+    /**
+     * A hatch sits on the side the hull shows to the enemy, and is placed from that wall: this share of
+     * the wall's width at most, pushed this far back from the corner towards the stern.
+     */
+    private static final float HATCH_WALL_SHARE = 0.7f;
+    private static final float HATCH_REAR_INSET = 0.12f;
     /** A destroyed hatch is this flat grey; the rest keep their side's colour. */
     private static final Color HATCH_DISABLED_COLOR = new Color(0.35f, 0.35f, 0.35f, 1f);
     /** An open hatch glows gold and pulses between these two brightnesses. */
@@ -1017,30 +1034,15 @@ public class BattleScreen extends ScreenAdapter {
     }
 
     private void drawBoard() {
-        int hatchColumnPlayer = BattleState.hatchColumn(BattleSide.PLAYER);
-        int hatchColumnEnemy = BattleState.hatchColumn(BattleSide.ENEMY);
         float pulse = HATCH_PULSE_BASE + HATCH_PULSE_SWING * (float) Math.sin(elapsed * HATCH_PULSE_SPEED);
 
-        // The net is the playfield, so it goes down first: the two hull columns drawn over it cover the
-        // ends of the strands, right where the rope is lashed to the ship.
+        // The net is the playfield, so it goes down first: the two hulls drawn over it cover the ends of
+        // the strands, right where the rope is lashed to the ship. The hatches then go on the hulls, so
+        // they read as openings in the side the ship shows the enemy rather than as squares on the net.
         drawNet();
-        // The ships go over the net as well, so the strand ends land on the hull; the deck squares then
-        // go over the hull, leaving the hull and the rigging visible outside the board.
         drawShips();
-
-        for (int x = 0; x < BattleState.WIDTH; x++) {
-            if (x != hatchColumnPlayer && x != hatchColumnEnemy) {
-                continue;
-            }
-            // The deck squares are part of the ship, so they stand off the net with the hull.
-            float left = cellLeft(x) + shipShift(x == hatchColumnPlayer ? BattleSide.PLAYER : BattleSide.ENEMY);
-            for (int y = 0; y < BattleState.HEIGHT; y++) {
-                float bottom = cellBottom(y);
-                shapes.setColor(HULL_COLOR);
-                shapes.rect(left, bottom, cell, cell);
-                drawHatch(x, y, left, bottom, pulse);
-            }
-        }
+        drawHatchColumn(true, pulse);
+        drawHatchColumn(false, pulse);
 
         for (int x = 0; x < BattleState.WIDTH; x++) {
             for (int y = 0; y < BattleState.HEIGHT; y++) {
@@ -1059,6 +1061,25 @@ public class BattleScreen extends ScreenAdapter {
     }
 
     /**
+     * The five hatches of one side, stacked down the rear of the side its hull shows to the enemy. That
+     * side is the near half of the hull - the half facing the net - so the hatches are placed from its
+     * wall: as wide as a share of it, and pushed back against the corner it makes with the stern.
+     */
+    private void drawHatchColumn(boolean player, float pulse) {
+        float span = hullSpan(player);
+        float wall = span * (1f - STERN_SHARE);
+        float size = Math.min(wall * HATCH_WALL_SHARE, cell * (1f - 2f * HATCH_INSET));
+        float out = player ? -1f : 1f;
+        float corner = hullNear(player) + out * wall;
+        float rear = corner - out * wall * HATCH_REAR_INSET;
+        float hatchX = player ? rear : rear - size;
+        BattleSide owner = player ? BattleSide.PLAYER : BattleSide.ENEMY;
+        for (int y = 0; y < BattleState.HEIGHT; y++) {
+            drawHatch(owner, y, hatchX, cellBottom(y) + (cell - size) / 2f, size, pulse);
+        }
+    }
+
+    /**
      * Wipes off everything above the sky band with the backdrop colour. The rigging is drawn tall
      * enough to leave the scene, so this is what cuts the masts and the sails off flat at the top of
      * the sky, just under the text band. The sky itself stops at the same line, so the mask only ever
@@ -1070,9 +1091,10 @@ public class BattleScreen extends ScreenAdapter {
     }
 
     /**
-     * The two ships the net is strung between. Each one is a wooden hull, symmetric about its own
-     * centre, running from just above the top of the board down past its bottom into the water, with
-     * the foot of its rigging standing on the deck.
+     * The two ships the net is strung between. Each one is a wooden hull seen a little from the side and
+     * from above, so it shows two walls - the side facing the net and the stern away from it - running
+     * from just above the top of the board down past its bottom into the water, with the foot of its
+     * rigging standing on the deck.
      */
     private void drawShips() {
         drawShip(true);
@@ -1087,38 +1109,64 @@ public class BattleScreen extends ScreenAdapter {
         // The water in front of the hull is shallow, so the keel stops at the bottom of the scene rather
         // than reaching into the log line underneath it.
         float keelY = Math.max(sceneBottom + cell * KEEL_FLOOR, boardY - cell * KEEL_DROP_CELLS);
-        float farDeck = near + out * span;
-        // The sides run straight down to the water and then lean in by the same amount on either side,
-        // so the hull is symmetric about its own centre.
+        // The hull is read from the stern to the bow, the bow being the edge the net is strung from. The
+        // stern is the far half of it, the side facing the net the near half, and the deck and the
+        // waterline both fall away towards the bow, so the stern stands taller than the bow.
+        float far = near + out * span;
+        float side = span * (1f - STERN_SHARE);
+        float xCorner = near + out * side;
+        float leanDeck = cell * DECK_LEAN_CELLS;
+        float leanWater = cell * WATERLINE_LEAN_CELLS;
+        float deckCorner = deckY - leanDeck * STERN_SHARE;
+        float deckBow = deckY - leanDeck;
+        float waterCorner = boardY - leanWater * STERN_SHARE;
+        float waterBow = boardY - leanWater;
+        float keelCorner = keelY - leanWater * STERN_SHARE;
+        float keelBow = keelY - leanWater;
+        // The keel is narrower than the deck at both ends of the whole hull, so the inset is spread
+        // along its length rather than dropped in at the corner.
         float keelInset = span * (1f - HULL_KEEL_CELLS / HULL_TOP_CELLS) / 2f;
+        float keelOut = far - out * keelInset;
+        float keelMid = keelOut - out * (span - 2f * keelInset) * STERN_SHARE;
+        float keelIn = near + out * keelInset;
 
-        // The hull is a single piece of timber, with neither planking bands nor a waterline stripe to
-        // break it up.
-        hullBand(near, near, farDeck, farDeck, deckY, boardY, HULL_COLOR);
-        hullBand(near, near + out * keelInset, farDeck, farDeck - out * keelInset,
-                boardY, keelY, HULL_COLOR);
+        // The side the enemy sees, from the corner to the bow: the hull above the water, then the part
+        // of it the water hides.
+        hullQuad(xCorner, deckCorner, near, deckBow, near, waterBow, xCorner, waterCorner, HULL_COLOR);
+        hullQuad(xCorner, waterCorner, near, waterBow, keelIn, keelBow, keelMid, keelCorner, HULL_COLOR);
+        // The stern, a shade darker, drawn over the side so the corner between them stays crisp.
+        hullQuad(far, deckY, xCorner, deckCorner, xCorner, waterCorner, far, boardY, HULL_STERN_COLOR);
+        hullQuad(far, boardY, xCorner, waterCorner, keelMid, keelCorner, keelOut, keelY,
+                HULL_STERN_COLOR);
 
         // Rigging: only the foot of it is on screen. A heavy mast runs from the deck to the top of the
         // sky and on past it, carrying one square sail, three hulls wide, whose foot hangs clear of the
         // deck and sags between its clews; the scene mask then cuts mast, sail and everything above them
         // off at the top of the sky.
-        float sky = Math.max(cell * RIGGING_MIN_SKY, sceneTop - deckY);
-        float rig = sky + cell * RIGGING_OVERFLOW;
         float mastX = near + out * span * MAST_POSITION;
+        // The mast stands upright, so its foot sits on the deck line at its own place along the hull.
+        float mastY = deckY - leanDeck * (1f - MAST_POSITION);
+        float sky = Math.max(cell * RIGGING_MIN_SKY, sceneTop - mastY);
+        float rig = sky + cell * RIGGING_OVERFLOW;
         float half = span * SAIL_HALF_WIDTH;
 
-        drawSailPanel(mastX, half, deckY + rig * SAIL_BOTTOM, deckY + rig * SAIL_TOP);
+        drawSailPanel(mastX, half, mastY + rig * SAIL_BOTTOM, mastY + rig * SAIL_TOP);
 
         shapes.setColor(HULL_COLOR);
-        shapes.rect(mastX - cell * MAST_THICKNESS / 2f, deckY, cell * MAST_THICKNESS, rig * MAST_TOP);
+        shapes.rect(mastX - cell * MAST_THICKNESS / 2f, mastY, cell * MAST_THICKNESS, rig * MAST_TOP);
     }
 
-    /** One slice of the hull: a band between two heights, with both edges given at each height. */
-    private void hullBand(float nearTop, float nearBottom, float farTop, float farBottom,
-            float yTop, float yBottom, Color shade) {
+    /** One wall of the hull: the four corners of a slab of timber, given in order round its edge. */
+    private void hullQuad(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4,
+            Color shade) {
         shapes.setColor(shade);
-        shapes.triangle(nearTop, yTop, farTop, yTop, farBottom, yBottom);
-        shapes.triangle(nearTop, yTop, farBottom, yBottom, nearBottom, yBottom);
+        shapes.triangle(x1, y1, x2, y2, x3, y3);
+        shapes.triangle(x1, y1, x3, y3, x4, y4);
+    }
+
+    /** A colour darkened (or lightened) by a factor, for the walls of one hull. */
+    private static Color shade(Color base, float factor) {
+        return new Color(base.r * factor, base.g * factor, base.b * factor, 1f);
     }
 
     /**
@@ -1234,13 +1282,11 @@ public class BattleScreen extends ScreenAdapter {
         }
     }
 
-    private void drawHatch(int x, int y, float left, float bottom, float pulse) {
+    private void drawHatch(BattleSide owner, int y, float hatchX, float hatchY, float size, float pulse) {
         int index = BattleState.hatchIndexForRow(y);
         if (index < 0) {
             return;
         }
-        BattleSide owner = x == 0 ? BattleSide.PLAYER : BattleSide.ENEMY;
-        float inset = cell * HATCH_INSET;
         if (state.isHatchDisabled(owner, index)) {
             shapes.setColor(HATCH_DISABLED_COLOR);
         } else if (owner == BattleSide.PLAYER) {
@@ -1257,19 +1303,21 @@ public class BattleScreen extends ScreenAdapter {
             shapes.setColor(ENEMY_COLOR.r * HATCH_ENEMY_BRIGHTNESS, ENEMY_COLOR.g * HATCH_ENEMY_BRIGHTNESS,
                     ENEMY_COLOR.b * HATCH_ENEMY_BRIGHTNESS, 1f);
         }
-        shapes.rect(left + inset, bottom + inset, cell - 2 * inset, cell - 2 * inset);
+        shapes.rect(hatchX, hatchY, size, size);
 
         if (owner == BattleSide.PLAYER && openHatches[index]) {
-            drawEntryMarker(bottom);
+            drawEntryMarker(cellBottom(y));
         }
 
-        // One small marker per pirate still waiting inside; drawn outside the hatch, from its top down
+        // One small marker per pirate still waiting inside; drawn outside the hatch, from the top of its
+        // row down, so the markers stay put however the hatch is placed on the hull.
         int waiting = state.getHatchCrew(owner, index);
         if (waiting <= 0) {
             return;
         }
-        float cx = owner == BattleSide.PLAYER ? left - cell * WAITING_MARKER_INSET : left + cell * (1f + WAITING_MARKER_INSET);
-        float top = bottom + cell * WAITING_MARKER_TOP;
+        float cx = owner == BattleSide.PLAYER ? hatchX - cell * WAITING_MARKER_INSET
+                : hatchX + size + cell * WAITING_MARKER_INSET;
+        float top = cellBottom(y) + cell * WAITING_MARKER_TOP;
         float step = cell * WAITING_MARKER_STEP;
         shapes.setColor(owner == BattleSide.PLAYER ? PLAYER_COLOR : ENEMY_COLOR);
         for (int i = 0; i < waiting; i++) {
