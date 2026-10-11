@@ -696,16 +696,17 @@ public class BattleScreen extends ScreenAdapter {
         }
 
         // The tap target is the hatch itself widened by HATCH_TAP_REACH cells on each side, so a hatch
-        // stays easy to hit even though the wall shows it narrower than a cell. The boxes of two rows
-        // overlap - the reach is wider than the gap between the hatches - so the nearest hatch wins:
-        // a tap anywhere on a hatch opens that hatch, and never the one above it.
+        // stays easy to hit even though the wall shows it narrower than a cell. The hatch slants with
+        // the wall, so the box is the bounding box of the four corners: what the eye sees of the hatch
+        // is inside it. The boxes of two rows overlap - the reach is wider than the gap between the
+        // hatches - so the nearest hatch wins: a tap anywhere on a hatch opens that hatch, and never
+        // the one above it.
         int hit = -1;
         float nearest = 0f;
         for (int i = 0; i < BattleState.HATCH_ROWS.length; i++) {
-            float low = hatchLow(i);
             float reach = cell * HATCH_TAP_REACH;
-            float bottom = hullScreenY(HATCH_COLUMN_UNITS, HULL_BEAM_UNITS, low);
-            float top = hullScreenY(HATCH_COLUMN_UNITS, HULL_BEAM_UNITS, low + HATCH_SIZE_UNITS);
+            float bottom = hatchBottom(i);
+            float top = hatchTop(i);
             if (touchX < hatchLeft(true) - reach || touchX > hatchRight(true) + reach
                     || touchY < bottom - reach || touchY > top + reach) {
                 continue;
@@ -1189,20 +1190,37 @@ public class BattleScreen extends ScreenAdapter {
         }
     }
 
-    /** The hatch of one row of the column: the quad the wall shows there, with its dark edge. */
+    /**
+     * The hatch of one row of the column: the unit square of the wall seen in the projection, with its
+     * dark edge. The wall runs away from the eye, so the square is a parallelogram - its sides stay
+     * upright (the projection moves a point sideways with its place along the ship only, never with its
+     * height), while its top and bottom slant with the wall, exactly as the deck above them does.
+     */
     private void hatchQuad(boolean player, int index) {
         float low = hatchLow(index);
-        float left = hatchLeft(player);
-        float right = hatchRight(player);
-        float bottom = hullScreenY(HATCH_COLUMN_UNITS, HULL_BEAM_UNITS, low);
-        float top = hullScreenY(HATCH_COLUMN_UNITS, HULL_BEAM_UNITS, low + HATCH_SIZE_UNITS);
-        shapes.triangle(left, top, right, top, right, bottom);
-        shapes.triangle(left, top, right, bottom, left, bottom);
+        float high = low + HATCH_SIZE_UNITS;
+        float rearX = hatchRearX(player);
+        float bowX = hatchBowX(player);
+        float rearBottom = hatchCornerY(false, low);
+        float rearTop = hatchCornerY(false, high);
+        float bowBottom = hatchCornerY(true, low);
+        float bowTop = hatchCornerY(true, high);
+        shapes.triangle(rearX, rearTop, bowX, bowTop, bowX, bowBottom);
+        shapes.triangle(rearX, rearTop, bowX, bowBottom, rearX, rearBottom);
         shapes.setColor(HATCH_EDGE_COLOR);
-        hullEdge(left, top, right, top);
-        hullEdge(right, top, right, bottom);
-        hullEdge(right, bottom, left, bottom);
-        hullEdge(left, bottom, left, top);
+        hullEdge(rearX, rearTop, bowX, bowTop);
+        hullEdge(bowX, bowTop, bowX, bowBottom);
+        hullEdge(bowX, bowBottom, rearX, rearBottom);
+        hullEdge(rearX, rearBottom, rearX, rearTop);
+    }
+
+    /**
+     * How high the wall stands at one of the two ends of the hatch column, in screen y. The two ends
+     * are at different depths, so the same height of wall lands lower at the bow end than at the stern.
+     */
+    private float hatchCornerY(boolean bow, float units) {
+        float s = bow ? HATCH_COLUMN_UNITS + HATCH_SIZE_UNITS : HATCH_COLUMN_UNITS;
+        return hullScreenY(s, HULL_BEAM_UNITS, units);
     }
 
     /** How far up the wall the hatch of one row starts, in ship units. */
@@ -1210,15 +1228,37 @@ public class BattleScreen extends ScreenAdapter {
         return HATCH_MARGIN_UNITS + (HATCH_COUNT - 1 - index) * (HATCH_SIZE_UNITS + HATCH_GAP_UNITS);
     }
 
+    /** The screen x of the two ends of the hatch column: the stern end and the bow end of the wall. */
+    private float hatchRearX(boolean player) {
+        return hullScreenX(player, HATCH_COLUMN_UNITS, HULL_BEAM_UNITS);
+    }
+
+    private float hatchBowX(boolean player) {
+        return hullScreenX(player, HATCH_COLUMN_UNITS + HATCH_SIZE_UNITS, HULL_BEAM_UNITS);
+    }
+
     /** How far the hatch column reaches to the left and to the right on the wall, in screen x. */
     private float hatchLeft(boolean player) {
-        return Math.min(hullScreenX(player, HATCH_COLUMN_UNITS, HULL_BEAM_UNITS),
-                hullScreenX(player, HATCH_COLUMN_UNITS + HATCH_SIZE_UNITS, HULL_BEAM_UNITS));
+        return Math.min(hatchRearX(player), hatchBowX(player));
     }
 
     private float hatchRight(boolean player) {
-        return Math.max(hullScreenX(player, HATCH_COLUMN_UNITS, HULL_BEAM_UNITS),
-                hullScreenX(player, HATCH_COLUMN_UNITS + HATCH_SIZE_UNITS, HULL_BEAM_UNITS));
+        return Math.max(hatchRearX(player), hatchBowX(player));
+    }
+
+    /**
+     * The bounding box of the hatch of one row: the lowest and the highest of its four corners. The
+     * stern end stands nearer the eye, so it is taller than the bow end; the box is what the hatch is
+     * held to when a tap is judged, since a slanted hatch is no longer a rectangle on screen.
+     */
+    private float hatchBottom(int index) {
+        float low = hatchLow(index);
+        return Math.min(hatchCornerY(false, low), hatchCornerY(true, low));
+    }
+
+    private float hatchTop(int index) {
+        float high = hatchLow(index) + HATCH_SIZE_UNITS;
+        return Math.max(hatchCornerY(false, high), hatchCornerY(true, high));
     }
 
     /**

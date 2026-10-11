@@ -156,7 +156,8 @@ Kolejnosc w `drawBoard` nie jest przypadkowa:
 * kadlub idzie **na** siatke (kolumny lukow 0 i 7), wiec siatka i kadlub zostaja widoczne po
   swojej stronie styku, a luki sa juz rysowane na burcie; kazda sciana kadluba (i kazdy luk) jest
   wypelniana i **od razu** obwiedziona ciemnym obrysem (sekcja 7), wiec obrys nie jest osobnym
-  przebiegiem i nic go nie zamalowuje;
+  przebiegiem i nic go nie zamalowuje; luk dostaje obrys po wszystkich czterech bokach, wiec jego
+  skos po burcie widac nawet wtedy, gdy wypelnienie luku ma ten sam kolor co sciana;
 * w samym `drawShip` **takielunek idzie pierwszy, a kadlub na niego** (`drawSailPanel` -> maszt ->
   burta -> rufa). Maszt stoi na srodku kadluba, czyli duzo dalej od oka niz rufa, wiec w rzucie
   z 15 stopni kadlub zaslania stope zagla - widoczna dolna krawedz zagla to **linia pokladu**,
@@ -402,7 +403,8 @@ a potem obwiedziona** ciemna kreska `HULL_EDGE_COLOR` o grubosci `HULL_EDGE_CELL
 wszystkich czterech krawedziach, wiec ciemna linie ma tez poklad i linia wodnej. Obrys to
 `rectLine` o **plaskich koncach**, wydluzony o polowe grubosci poza kazdy koniec, dzieki czemu na
 naroznikach kreski sie przecinaja i zamykaja naroznik bez szczeliny. Luki dostaly to samo
-(`hatchQuad`), tylko ciemniejszym kolorem - patrz punkt 9.
+(`hatchQuad`), tylko ciemniejszym kolorem i po czterech bokach **rzutu** luku, a nie pudelka -
+patrz punkt 9.
 
 Takielunek - **tylko jego dol jest widoczny**:
 
@@ -524,7 +526,7 @@ zadnej zmiany. Narzedzie `_viz/` mierzy z obrazu odleglosc konca kazdej liny od 
 | `HATCH_GAP_UNITS` | 0.25 | odstep miedzy lukami |
 | `HATCH_MARGIN_UNITS` | 0.5 | zapas od pokladu i od stepki |
 | `HATCH_COLUMN_HEIGHT_UNITS` | `1 + 4 * 1.25` = 6 | dlugosc calej kolumny lukow; **wyliczana** z `HATCH_SIZE_UNITS`, `HATCH_GAP_UNITS` i liczby wierszy, z niej liczy sie `FOCAL_CELLS` (punkt 7) |
-| `HATCH_EDGE_SHADE` / `HATCH_EDGE_COLOR` | 0.35 / 37, 23, 13 | obrys luku - ciemniejszy od obrysu kadluba, zeby luki odstawaly od burty; grubosc bierze z `HULL_EDGE_CELLS` |
+| `HATCH_EDGE_SHADE` / `HATCH_EDGE_COLOR` | 0.35 / 37, 23, 12 | obrys luku - ciemniejszy od obrysu kadluba, zeby luki odstawaly od burty; grubosc bierze z `HULL_EDGE_CELLS` |
 | `HATCH_DISABLED_COLOR` | 0.35, 0.35, 0.35 | zniszczony luk |
 | `HATCH_OPEN_COLOR` | 0.98, 0.79, 0.28 | zloty kolor otwartego luku |
 | `HATCH_OPEN_BRIGHTNESS` / `HATCH_OPEN_PULSE` | 0.85 / 0.15 | otwarty luk pulsuje miedzy tymi jasnosciami |
@@ -542,29 +544,53 @@ Geometria lukow (`drawHatchColumn` / `hatchQuad`):
 
 ```
 low    = HATCH_MARGIN_UNITS + (HATCH_COUNT - 1 - i) * (HATCH_SIZE_UNITS + HATCH_GAP_UNITS)
-left   = min(hullScreenX(player, HATCH_COLUMN_UNITS, B), hullScreenX(player, HATCH_COLUMN_UNITS + HATCH_SIZE_UNITS, B))
-right  = max(te same dwa wyrazy)
-bottom = hullScreenY(HATCH_COLUMN_UNITS, B, low)
-top    = hullScreenY(HATCH_COLUMN_UNITS, B, low + HATCH_SIZE_UNITS)
+high   = low + HATCH_SIZE_UNITS
+
+rearX = hullScreenX(player, HATCH_COLUMN_UNITS, B)                    // krawedz rufowa luku
+bowX  = hullScreenX(player, HATCH_COLUMN_UNITS + HATCH_SIZE_UNITS, B) // krawedz dziobowa luku
+rearBottom = hullScreenY(HATCH_COLUMN_UNITS, B, low)   rearTop = hullScreenY(HATCH_COLUMN_UNITS, B, high)
+bowBottom  = hullScreenY(HATCH_COLUMN_UNITS + HATCH_SIZE_UNITS, B, low)
+bowTop     = hullScreenY(HATCH_COLUMN_UNITS + HATCH_SIZE_UNITS, B, high)
+
+left   = min(rearX, bowX)              right  = max(rearX, bowX)
+bottom = min(rearBottom, bowBottom)    top    = max(rearTop, bowTop)
 ```
 
 `B = HULL_BEAM_UNITS` to blizsza burta (ta od strony planszy), a `HATCH_COUNT` to liczba wierszy lukow
-z `BattleState.HATCH_ROWS`. Luk jest wiec **czworokatem na rzucie burty** - `hatchQuad` rozbija go na
-dwa trojkaty, a potem obwodzi wszystkie cztery boki ciemna kreska (`HATCH_EDGE_COLOR`) - a nie
-prostokatem w oczku planszy. Wnetrze luku zostaje **plaskie**: zaglebienie ze szkicu nie jest
-rysowane, wiec luk czyta sie po kolorze (stan luku) i po obrysie, a nie po cieniu. Luk stoi **na
-burcie przy rufie** (kolumna startuje
-`0.5` jednostki od rufy, tak jak na `ship dimensions.png`, rysunek B) i kurczy sie razem z perspektywa:
-na 1920x1080 ma `22.87 px = 0.284 cell` szerokosci i `70.29 px = 0.874 cell` wysokosci, a na 400x800
-ledwie kilka pikseli. Slupek oczekujacych znacznikow stoi tuz obok, od strony rufy
+z `BattleState.HATCH_ROWS`. Luk jest **rzutem jednostkowego kwadratu burty**, czyli - poniewaz burta
+ucieka od oka - **rownoleglobokiem**: `hatchQuad` liczy cztery narozniki `rearX`/`bowX` x
+`low`/`high`, rozbija go na dwa trojkaty, a potem obwodzi wszystkie cztery boki ciemna kreska
+(`HATCH_EDGE_COLOR`). Zadna z tych czterech krawedzi nie jest pozioma ani pionowa w oczkach planszy:
+luk nie jest prostokatem w ukladzie ekranu, tylko kwadratem na burcie.
+
+Trzy wlasnosci tego rzutu, ktore trzeba zachowac przy zmianach:
+
+* **boki luku zostaja pionowe** - `hullX` nie zalezy od `y`, wiec rzut przesuwa punkt w bok tylko
+  jego polozeniem wzdluz statku (`s`), nigdy wysokoscia; dlatego luk nie jest przekrzywiony;
+* **gorna i dolna krawedz opadaja od rufy do dziobu** - dokladnie tak, jak linia pokladu nad nimi,
+  bo wysokosc `y` dzieli sie przez `depth`, a `depth` rosnie z `s`. Na 1920x1080 gorna krawedz
+  opada `18.69 px = 0.232 cell`, dolna `12.46 px = 0.155 cell`;
+* **opad luku to `3.0 / 3.5` opadu pokladu** - stosunek `(H - low - 0.5) / H` dla srodka kolumny
+  (`low = 5.5` dla pierwszego luku), bo skos jest liniowy w `y`. Narzedzie porownuje te dwie liczby
+  w wierszu `luk skos / skos pokladu` (0.86 wobec oczekiwanego 0.857).
+
+Wnetrze luku zostaje **plaskie**: zaglebienie ze szkicu nie jest rysowane, wiec luk czyta sie po
+kolorze (stan luku) i po obrysie, a nie po cieniu. Luk stoi **na burcie przy rufie** (kolumna
+startuje `0.5` jednostki od rufy, tak jak na `ship dimensions.png`, rysunek B) i kurczy sie razem
+z perspektywa: na 1920x1080 ma `22.87 px = 0.284 cell` szerokosci i `70.29 px = 0.874 cell` wysokosci
+(przy dziobie `64.07 px = 0.796 cell`, bo dziob jest dalej od oka), a na 400x800 ledwie kilka
+pikseli. Slupek oczekujacych znacznikow stoi tuz obok, od strony rufy
 (`WAITING_MARKER_INSET`), wiec na waskim ekranie ladnie przylega do ciemnej rufy.
 
-Obszar dotyku lukow w `handleInput` **zmienil sie razem z lukami**: jest teraz budowany z tego samego
-rzutu (`hatchLeft` / `hatchRight` oraz `hullScreenY` dla `low` i `low + HATCH_SIZE_UNITS`) i poszerzony
-o `cell * HATCH_TAP_REACH` z kazdej strony - inaczej waski luk na burcie bylby prawie nie do trafienia.
-Poniewaz zasieg jest wiekszy niz odstep miedzy lukami, pudelka dwoch sasiednich lukow zachodza na
-siebie; zeby nie otwieralo to luku wyzej, wygrywa luk **blizszy dotkniecia** (porownanie odleglosci
-`touchY` od srodka luku). Dotkniecie w dowolnym miejscu luku zawsze otwiera ten luk.
+Obszar dotyku lukow w `handleInput` jest budowany z tego samego rzutu, ale z **pudelka**
+(`hatchLeft` / `hatchRight` x `hatchBottom` / `hatchTop`), bo przekrzywiony luk nie jest juz
+prostokatem na ekranie, a palec nie trafia w skos. Pudelko jest o tyle wyzsze od luku, o ile
+opadaja jego krawedzie: na 1920x1080 ma `82.75 px = 1.029 cell` wysokosci zamiast `0.874 cell`
+luku (na 400x800 `17.33 px`), i jest poszerzone o `cell * HATCH_TAP_REACH` z kazdej strony - inaczej
+waski luk na burcie bylby prawie nie do trafienia. Poniewaz zasieg jest wiekszy niz odstep miedzy
+lukami, pudelka dwoch sasiednich lukow zachodza na siebie; zeby nie otwieralo to luku wyzej, wygrywa
+luk **blizszy dotkniecia** (porownanie odleglosci `touchY` od srodka pudelka). Dotkniecie
+w dowolnym miejscu luku zawsze otwiera ten luk.
 
 ### 10. Sterowanie
 
@@ -648,7 +674,7 @@ wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 d
 | Rozdarcia | `drawHole` | kolo `GAP_COLOR` + kolo tla + 6 luznych linii |
 | Kadlub (dwie sciany) | `drawShip` / `hullFace` / `hullEdge` | burta (`HULL_COLOR`) i rufa (`HULL_STERN_COLOR`), kazda jako jeden czworokat na rzucie perspektywicznym (15 stopni od osi statku, patrz punkt 7), obwiedziony ciemnym obrysem; poklad i linia wody opadaja od rufy do dziobu, a wysokosc obu scian jest ta sama |
 | Maszt i zagiel | `drawShip` / `drawSailPanel` | jeden zagiel o szerokosci `0.8` planszy (wachlarz 18 trojkatow: prosta glowa, liki zbierajace sie ku dolowi, sagi luk stopy) + gruby maszt stojacy na rzucie pokladu; **rysowane przed kadlubem**, wiec stopa zagla zupelnie znika za burta i widoczna dolna krawedz zagla to linia pokladu; glowa zagla ucinana od gory przez `drawSceneMask` |
-| Luki | `drawHatchColumn` / `drawHatch` / `hatchQuad` | czworokat na rzucie burty (`hatchQuad`) z ciemnym obrysem, w kolumnie przy rufie, kolor zalezny od stanu (wnetrze plaskie, bez zaglebienia) |
+| Luki | `drawHatchColumn` / `drawHatch` / `hatchQuad` | rzut **kwadratu na burcie** (rownoleglobok, boki pionowe, gorna i dolna krawedz po skosie burty) z ciemnym obrysem po czterech bokach, w kolumnie przy rufie, kolor zalezny od stanu (wnetrze plaskie, bez zaglebienia) |
 | Slupek oczekujacych | `drawHatch` | jedno male kolo na pirata, od gory luku w dol, na zewnatrz luku od strony rufy |
 | Znacznik wejscia | `drawEntryMarker` | zloty pierscien z tlem w srodku |
 | Zaloga na siatce | `drawBoard` | cien + kolo w kolorze strony |
@@ -772,6 +798,13 @@ zadnej stalej wprost:
   dol jest ukryty i widoczna krawedz zagla to linia pokladu, ale sam zagiel nie moze wejsc na plansze;
 * **luki siedza na burcie** - kontrola `luk w burcie` i zakres `x` luku musza sie zgadzac, bo obszar
   dotyku lukow jest budowany z tego samego rzutu (sekcja 9);
+* **luk jest kwadratem na burcie, nie prostokatem na ekranie** - wiersz `luk skos / skos pokladu`
+  musi dawac 0.86 (tyle, ile `3.0 / 3.5` opadu pokladu), a blok `gora luku z pikseli` musi czytac
+  **oba** narozniki gornej krawedzi: naroznik rufowy wyzej od dziobowego o policzona wartosc
+  (`opad`). Ten odczyt bierze kolumne pionowej krawedzi luku (najwiecej trafien w polowie okna),
+  bo skrajne kolumny lapia tylko zaokraglone konce poziomych kresek sasiednich lukow i podaja liczbe
+  z sufitu; gdy luk jest wezszy niz `MIN_HATCH_READ_PX = 10 px` (400x800, 800x480), narzedzie
+  porownuje tylko najwyzszy piksel obrysu z policzonym naroznikiem rufowym;
 * **obrys nie zjada kadluba** - `HULL_EDGE_CELLS` jest w `cell`, wiec na najwezszym ekranie
   (400x800) wychodzi `0.51 px` i obrys potrafi zniknac (`brak px` w bloku `obrys kadluba`) albo
   zjesc cala sciane. Narzedzie mierzy go z pikseli, wiec zamiast zgadywac, warto spojrzec na te
@@ -824,8 +857,12 @@ Inne tryby (pojedynczo) wybiera sie wlasciwoscia `-PvizMain=`, np. `-PvizMain=vi
 * **oba statki** - `near`/`far`/`room`, szerokosc i wysokosc kadluba w px i w `cell`, szerokosc
   burty i rufy, `x` krawedzi naroznej i dalszego rogu rufy, `x` dziobu, `poklad` i `linia wody`
   w trzech punktach (rog burty, rufa, dziob), `wysokosc sciany` w tych samych punktach (kontrola, ze
-  obie sciany sa tej samej wysokosci), bok luku w px i w `cell`, zakres `x` luku, jego wiersze
-  (`luk y wiersz 0/4` plus krok), kontrola `luk w burcie`, szerokosc zagla, wysokosc zawieszenia
+  obie sciany sa tej samej wysokosci), szerokosc luku w px i w `cell`, zakres `x` luku, jego wiersze
+  (`luk y rufa wiersz 0/4` plus krok), wysokosc luku przy rufie i przy dziobie (`luk wysokosc rufa` /
+  `luk wysokosc dziob`), opad gornej i dolnej krawedzi luku (`luk skos gora` / `luk skos dol`),
+  iloraz tego opadu do opadu pokladu (`luk skos / skos pokladu`, ma wyjsc `0.86`), wysokosc pudelka
+  luku (`luk otoczka wysokosc`, czyli obszar dotkniecia), kontrola `luk w burcie`, szerokosc zagla,
+  wysokosc zawieszenia
   zagla nad stopa masztu, wysokosc obciecia maska, **`zagle nad plansza`** (znakowana odleglosc
   stopy zagla od gornej krawedzi planszy; wartosc ujemna to blad), szerokosc masztu, jego os `x`,
   wysokosc stopy i wysokosc;
@@ -841,7 +878,13 @@ Inne tryby (pojedynczo) wybiera sie wlasciwoscia `-PvizMain=`, np. `-PvizMain=vi
   (`rufa` / `naroze` / `dziob`; `brak px` znaczy, ze obrys jest cienszy niz piksel - tak jest na
   400x800, gdzie ma `0.51 px`), szerokosc obrysu luku i obrys calej sylwetki (`obrys statku x [...]`)
   z odchyleniem od pudelka kadluba powiekszonego o polowe grubosci. Odchylenie do ~1.5 px jest
-  normalne, wieksze znaczy, ze obrys wyszedl poza kadlub;
+  normalne, wieksze znaczy, ze obrys wyszedl poza kadlub. Ten sam skan czyta **narozniki gornej
+  krawedzi luku** (`gora luku z pikseli`): osobno naroznik rufowy i dziobowy z ich policzonymi
+  wartosciami oraz `opad` w pikselach - to jedyna kontrola, ktora widzi skos luku na ekranie. Dla
+  kazdej polowy okna wybierana jest kolumna z najwieksza liczba pikseli obrysu (prawdziwa pionowa
+  krawedz luku), bo skrajne kolumny okna lapia tylko zaokraglone konce poziomych kresek sasiednich
+  lukow; gdy luk jest wezszy niz `MIN_HATCH_READ_PX = 10 px`, blok podaje sam najwyzszy piksel
+  obrysu zamiast dwoch naroznikow;
 * **konce lin** - trzeci skan, takze na obrazie bez nakladki: dla kazdego z 6 rzedow siatki blok
   `siec: konce lin` podaje odleglosc konca poziomej liny od krawedzi planszy (w `cell`) oraz
   najblizszy planszy punkt drewna kadluba w tym rzedzie. Wynik `NA DREWNIE` znaczy, ze lina wchodzi
