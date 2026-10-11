@@ -292,8 +292,12 @@ public class BattleScreen extends ScreenAdapter {
 
     /** The sail, hung on the mast above the hull. */
     private static final Color SAIL_COLOR = color(196, 186, 158);
-    /** The whole ship, deck squares included, stands this far off the net. */
-    private static final float SHIP_GAP_CELLS = 0.50f;
+    /**
+     * The whole ship, deck squares included, stands this far off the net. The strands run this far and a
+     * tuck further, so together with STRAND_TUCK_CELLS this is what keeps them within half a cell of the
+     * board's outermost column, the one the hatches open onto.
+     */
+    private static final float SHIP_GAP_CELLS = 0.25f;
 
     /**
      * The hatch column on the wall facing the board: one hatch per row of the board, each a unit
@@ -325,8 +329,10 @@ public class BattleScreen extends ScreenAdapter {
      * Room beside the net for a whole hull, the strands that tuck under it and a little air: the gap the
      * ship stands off, its bow's reach back towards the net, its stern's reach away from it, and the air.
      * The board sits this far from the edge of the scene, so no part of a ship is ever over the net.
+     * The air holds what the gap gave up: the ships moved a quarter of a cell closer to the net, so the
+     * room - and with it the size of the board, the panel and the text - stays exactly where it was.
      */
-    private static final float SHIP_AIR_CELLS = 0.35f;
+    private static final float SHIP_AIR_CELLS = 0.60f;
     private static final float SHIP_ROOM = SHIP_GAP_CELLS + HULL_BOW_CELLS + HULL_STERN_CELLS + SHIP_AIR_CELLS;
     /**
      * The rigging runs from the deck up to the top of the sky band and a little past it, so only its
@@ -373,8 +379,12 @@ public class BattleScreen extends ScreenAdapter {
     /**
      * How far past the net the strands run. The lines of the net start one cell in from the edge of the
      * board, so a strand has to cross that cell, the gap the ships stand off and a little of the hull
-     * before it ends: the ships are drawn over the net, so the strands disappear under the wood instead
-     * of stopping in mid air.
+     * before it ends: the ships are drawn over the net, so where the wood reaches far enough out the
+     * strands disappear under it instead of stopping in mid air. The gap and this tuck together are the
+     * overhang past the board's outermost column, the one the hatches open onto, and they are held to
+     * half a cell so the net reads as made fast to that column. Only the strands level with the middle
+     * of the bow's wall reach the wood; the higher and lower ones end over the sea, because the wall
+     * there is shorter than the net is tall.
      */
     private static final float STRAND_TUCK_CELLS = 0.25f;
     private static final float STRAND_REACH = 1f + SHIP_GAP_CELLS + STRAND_TUCK_CELLS;

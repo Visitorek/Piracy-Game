@@ -42,7 +42,10 @@ ekranem powrotu (`returnScreen`). Wyjscie z ekranu idzie przez `BattleResult` (p
 * `hullNear(side) = edge + outward * cell * (SHIP_GAP_CELLS + HULL_BOW_CELLS)` - gdzie stoi
   **srodek** kadluba (nie jego krawedz!). Dziob jest punktem, ktory rzut obraca ku siatce, wiec
   srodek statku stoi o `HULL_BOW_CELLS` dalej od planszy; dzieki temu dziob wypada dokladnie
-  `SHIP_GAP_CELLS` od siatki, a caly kadlub zostaje poza plansza.
+  `SHIP_GAP_CELLS` od siatki, a caly kadlub zostaje poza plansza. `SHIP_GAP_CELLS = 0.25 cell`
+  i `STRAND_TUCK_CELLS = 0.25 cell` to razem **pol oczka** - o tyle najwyzej lina wychodzi za
+  skrajna kolumne planszy (te, na ktora otwieraja sie luki), i to jest ta sama polowka, ktora
+  czyta sie jako zamocowanie siatki przy lukach.
 * `hullScreenX/hullScreenY` - jedyne zrodlo pozycji czegokolwiek na statku: kadluba, lukow, masztu
   i obszarow dotyku. Statek jest rysowany w **rzucie perspektywicznym** pudelka (patrz punkt 7),
   a nie jako plaskie wielokaty, wiec jego pozycja i ksztalt zaleza od rozdzielczosci tylko przez
@@ -90,8 +93,12 @@ ekranem powrotu (`returnScreen`). Wyjscie z ekranu idzie przez `BattleResult` (p
    SHIP_AIR_CELLS`, wiec `boardX` odsuwa plansze od krawedzi sceny o caly statek - i o tyle samo
    rosnie `span` (punkt 7), zeby statek zmiescil sie w scenie bez zwezania planszy. Kontrola:
    daleka krawedz rufy gracza wypada `SHIP_ROOM - (SHIP_GAP_CELLS + HULL_BOW_CELLS) - HULL_STERN_CELLS
-   = SHIP_AIR_CELLS = 0.35 cell` od lewej krawedzi sceny, a symetrycznie po prawej - zadna czesc
-   statku nie wychodzi za scene ani nie wchodzi na plansze.
+   = SHIP_AIR_CELLS = 0.60 cell` od lewej krawedzi sceny, a symetrycznie po prawej - zadna czesc
+   statku nie wychodzi za scene ani nie wchodzi na plansze. **`SHIP_ROOM` jest zapasem, ktory trzyma
+   skale sceny**: `SHIP_GAP_CELLS` i `SHIP_AIR_CELLS` dziela go miedzy siebie (statki blizej siatki
+   = wiecej powietrza z tylu), wiec zmiana jednego bez drugiego przelicza `cell`, plansze i caly
+   uklad. `0.25 + 0.60` daje te same `5.495 cell`, co dawniej `0.50 + 0.35` - na 1920x1080
+   `cell = 80.4 px` i `boardX = 463.6 px` zostaly bez zmian, przesunely sie tylko statki.
 10. **Horyzont jest przypiety do stolu, nie do siatki**: `horizonY = sceneBottom + cell *
     (HORIZON_HEIGHT_CELLS + SEA_DEPTH) / netScale`. Dzieki temu powiekszenie siatki zabiera
     miejsce niebu i morzu, a nie przesuwa horyzontu.
@@ -297,9 +304,9 @@ Poza sekcja 1, ale tez strojenie w czasie: `ENEMY_THINK_SECONDS` (0.8) - ile "my
 | `FOCAL_CELLS` | 8.682 | ogniskowa rzutu w oczkach; wyliczona tak, zeby kolumna lukow byla dokladnie tak wysoka jak rzedy, ktore otwiera |
 | `HULL_BOW_CELLS` | 1.218 | o tyle dziob wystaje do przodu od srodka kadluba |
 | `HULL_STERN_CELLS` | 3.427 | o tyle rufa wystaje do tylu od srodka kadluba |
-| `SHIP_AIR_CELLS` | 0.35 cell | zapas powietrza miedzy rufa a krawedzia sceny |
+| `SHIP_AIR_CELLS` | 0.60 cell | zapas powietrza miedzy rufa a krawedzia sceny; trzyma `SHIP_ROOM` na 5.495 cell, gdy statki stoja blizej siatki |
 | `SAIL_COLOR` | 196, 186, 158 | kolor zagli |
-| `SHIP_GAP_CELLS` | 0.50 cell | o pol oczka statek (kadlub i luki) stoi od siatki |
+| `SHIP_GAP_CELLS` | 0.25 cell | o cwierc oczka statek (kadlub i luki) stoi od siatki; razem z `STRAND_TUCK_CELLS` daje pol oczka, o ktore najwyzej wychodza liny |
 | `RIGGING_MIN_SKY` | 0.4 cell | minimalna wysokosc takielunku nad stopa masztu (dolna granica) |
 | `RIGGING_OVERFLOW` | 0.5 cell | o tyle takielunek wychodzi ponad gorna krawedz sceny (`sceneTop`) |
 | `MAST_POSITION` | 0.42 | gdzie stoi maszt na kadlubie (udzial dlugosci od rufy, czyli prawie na srodku) |
@@ -473,7 +480,7 @@ zagla - ucina tylko jego gore i wierzch masztu, a stopa zagla jest schowana za k
 | `STRAND_THICKNESS` | 0.04 cell | grubosc liny |
 | `STRAND_EDGE` | 0.012 cell | ciemna obwodka wokol liny, zeby byla czytelna nad jasnym morzem |
 | `STRAND_TUCK_CELLS` | 0.25 cell | o tyle pozioma lina wchodzi pod kadlub |
-| `STRAND_REACH` | `1 + SHIP_GAP_CELLS + STRAND_TUCK_CELLS` = 1.75 cell | o tyle liny wychodza poza skrajne linie siatki |
+| `STRAND_REACH` | `1 + SHIP_GAP_CELLS + STRAND_TUCK_CELLS` = 1.50 cell | o tyle liny wychodza poza skrajne linie siatki, czyli 0.50 cell za skrajna kolumne planszy |
 | `HOLE_RADIUS` | 0.38 cell | promien rozdarcia |
 | `HOLE_SPOKES` | 6 | ile luznych linii przecina rozdarcie |
 | `HOLE_BACKDROP` | 0.86 | jaka czesc promienia pokazuje tlo |
@@ -496,9 +503,14 @@ na kadlubach. Jedno oczko siatki = jedno pole planszy, jednostka stoi zawsze w s
 na wezle. `STRAND_REACH` sklada sie z trzech kawalkow: **jednego oczka** (linie siatki zaczynaja sie
 dopiero na `cellLeft(1)`, wiec lina musi przejsc to oczko, zeby dojsc do statku), **szczeliny
 `SHIP_GAP_CELLS`** i **`STRAND_TUCK_CELLS`** pod kadlubem - dlatego szczelina czyta sie jako lina,
-a nie jako blad ukladu, a lina **konczy sie na drewnie, a nie w powietrzu** (statki rysowane sa nad
-siatka). Luki sa teraz na **burcie** - rysowane rzutem z punktu 7 - ale linki nadal koncza sie
-w tych samych rzedach, wiec siatka nie wymagala zadnej zmiany.
+a nie jako blad ukladu. Dwa ostatnie kawalki to razem **pol oczka**, wiec lina mija skrajna kolumne
+planszy (ta, na ktora otwieraja sie luki) o najwyzej pol oczka: **wlasnie ta polowka czyta sie jako
+zamocowanie siatki przy lukach**. Kadlub rysowany jest nad siatka, wiec linie na wysokosci sciany
+dziobu (na 1920x1080 sa to wiersze 2 i 3) koncza sie **pod drewnem**, a pozostale - wyzej i nizej,
+gdzie sciana dziobu jest nizsza niz siatka - koncza sie nad woda. Luki sa na **burcie** - rysowane
+rzutem z punktu 7 - ale linki nadal koncza sie w tych samych rzedach, wiec siatka nie wymagala
+zadnej zmiany. Narzedzie `_viz/` mierzy z obrazu odleglosc konca kazdej liny od krawedzi planszy
+(sekcja `siec: konce lin`) i pilnuje, zeby nie przekroczyla pol oczka.
 
 ### 9. Luki, zaloga i znaczniki
 
@@ -681,7 +693,7 @@ wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 d
 | Chce zmienic | Co ruszyc |
 |---|---|
 | Wieksza / mniejsza siatka miedzy statkami | `NET_SCALE` (horyzont zostaje na miejscu) |
-| Odsunac statki od siatki | `SHIP_GAP_CELLS` (liny ida za nimi, bo `STRAND_REACH` liczy sie z tego samego) |
+| Odsunac statki od siatki | `SHIP_GAP_CELLS` (liny ida za nimi, bo `STRAND_REACH` liczy sie z tego samego) **razem z `SHIP_AIR_CELLS`** - dopoki ich suma zostaje ta sama, skala sceny sie nie zmienia; uwaga: `SHIP_GAP_CELLS + STRAND_TUCK_CELLS` to odleglosc konca liny za skrajna kolumna planszy i nie powinna przekroczyc pol oczka |
 | Inna dlugosc lin w szczelinie | `STRAND_TUCK_CELLS` |
 | Grubsza lina / wyrazniejsza siatka | `STRAND_THICKNESS`, `STRAND_EDGE` |
 | Wieksze rozdarcia | `HOLE_RADIUS`, ewentualnie `HOLE_SPOKES` |
@@ -689,7 +701,7 @@ wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 d
 | Szerszy lub wezszy / dluzszy lub krotszy / wyzszy lub nizszy kadlub | `HULL_BEAM_UNITS`, `HULL_LENGTH_UNITS`, `HULL_HEIGHT_UNITS` - reszta (`FOCAL_CELLS`, `HULL_BOW_CELLS`, `HULL_STERN_CELLS`, `SHIP_ROOM`) **przelicza sie sama** |
 | Inny kat widoku (mniej / bardziej z boku) | `VIEW_YAW_DEG` (0 = patrzymy wzdluz statku, 90 = z burty) |
 | Inne skrocenie perspektywy (kadlub dluzszy / krotszy na ekranie) | `VIEW_DISTANCE_UNITS` (mniej = blizej, wieksze skrocenie) |
-| Wiekszy / mniejszy statek na ekranie | `HATCH_COLUMN_HEIGHT_UNITS` (przez `FOCAL_CELLS`) albo `SHIP_GAP_CELLS` + `SHIP_AIR_CELLS` (przez `SHIP_ROOM`) |
+| Wiekszy / mniejszy statek na ekranie | `HATCH_COLUMN_HEIGHT_UNITS` (przez `FOCAL_CELLS`) albo `SHIP_GAP_CELLS` + `SHIP_AIR_CELLS` (przez `SHIP_ROOM`) - przeliczy wtedy `cell` i caly uklad |
 | Wyrazniejsza / slabsza krawedz narozna | `STERN_SHADE` |
 | Inne polozenie kolumny lukow (blizej / dalej rufy) | `HATCH_COLUMN_UNITS` |
 | Wieksze / mniejsze luki | `HATCH_SIZE_UNITS`, `HATCH_GAP_UNITS`, `HATCH_MARGIN_UNITS` (uwaga: zmiana rozmiaru przelicza `FOCAL_CELLS`) |
@@ -751,6 +763,10 @@ zadnej stalej wprost:
 * **kadlub nie wchodzi na siatke** - `SHIP_ROOM` liczy sie z `SHIP_GAP_CELLS`, `HULL_BOW_CELLS`
   i `HULL_STERN_CELLS`, wiec kazda zmiana `VIEW_YAW_DEG`, `VIEW_DISTANCE_UNITS` albo wymiarow
   kadluba przesuwa rowniez polozenie statku i szerokosc sceny;
+* **koniec liny zostaje w pol oczka od planszy** - blok `siec: konce lin` w `_viz/out/measurements.txt`
+  podaje dla kazdego z 6 rzedow odleglosc konca liny od krawedzi planszy i musi ona wynosic
+  `<= 0.50 cell` (plus ciemna obwodka `STRAND_EDGE` i 1 px rasteru); pilnuje tego para
+  `SHIP_GAP_CELLS` + `STRAND_TUCK_CELLS`, ktorej suma daje wlasnie pol oczka;
 * **stopa zagla zostaje nad plansza** - wiersz `zagle nad plansza` musi byc dodatni w kazdej
   rozdzielczosci (na 1920x1080 jest to `+5.20 px`); zagiel rysowany jest przed kadlubem, wiec jego
   dol jest ukryty i widoczna krawedz zagla to linia pokladu, ale sam zagiel nie moze wejsc na plansze;
@@ -826,6 +842,13 @@ Inne tryby (pojedynczo) wybiera sie wlasciwoscia `-PvizMain=`, np. `-PvizMain=vi
   400x800, gdzie ma `0.51 px`), szerokosc obrysu luku i obrys calej sylwetki (`obrys statku x [...]`)
   z odchyleniem od pudelka kadluba powiekszonego o polowe grubosci. Odchylenie do ~1.5 px jest
   normalne, wieksze znaczy, ze obrys wyszedl poza kadlub;
+* **konce lin** - trzeci skan, takze na obrazie bez nakladki: dla kazdego z 6 rzedow siatki blok
+  `siec: konce lin` podaje odleglosc konca poziomej liny od krawedzi planszy (w `cell`) oraz
+  najblizszy planszy punkt drewna kadluba w tym rzedzie. Wynik `NA DREWNIE` znaczy, ze lina wchodzi
+  pod dziob i konczy sie niewidoczna, `W POWIETRZU` - ze wolny koniec wisi nad woda. Ostatnia linia
+  pilnuje reguly: najdalszy koniec liny nie moze wyjsc wiecej niz **pol oczka** za skrajna kolumne
+  planszy (limit to `0.50 cell` + obwodka `STRAND_EDGE` + 1 px rasteru). Pomiar obejmuje obwodke
+  liny, bo na waskich ekranach (400x800, lina ma `0.68 px`) sama lina bywa ciensza niz piksel;
 * **sterowanie** - `compassX`, `compassY`, `compassRadius`, promien tarczy "GO!" (`COMPASS_GO_RADIUS`),
   promien okregu liter (`COMPASS_LETTER_RING`), rozmiar napisu (`COMPASS_LABEL_SIZE`), dlugosc i
   szerokosc igly (`igla dl./szer.`), zasieg grota strzalki (`grot strzalki R`), polowa szerokosci
