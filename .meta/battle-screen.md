@@ -42,10 +42,15 @@ ekranem powrotu (`returnScreen`). Wyjscie z ekranu idzie przez `BattleResult` (p
 * `hullNear(side) = edge + outward * cell * (SHIP_GAP_CELLS + HULL_BOW_CELLS)` - gdzie stoi
   **srodek** kadluba (nie jego krawedz!). Dziob jest punktem, ktory rzut obraca ku siatce, wiec
   srodek statku stoi o `HULL_BOW_CELLS` dalej od planszy; dzieki temu dziob wypada dokladnie
-  `SHIP_GAP_CELLS` od siatki, a caly kadlub zostaje poza plansza. `SHIP_GAP_CELLS = 0.25 cell`
-  i `STRAND_TUCK_CELLS = 0.25 cell` to razem **pol oczka** - o tyle najwyzej lina wychodzi za
-  skrajna kolumne planszy (te, na ktora otwieraja sie luki), i to jest ta sama polowka, ktora
-  czyta sie jako zamocowanie siatki przy lukach.
+  `SHIP_GAP_CELLS` od siatki. `SHIP_GAP_CELLS` jest **ujemne** (`-2.60 cell`): statki stoja tak
+  blisko, ze ich dzioby wchodza na skrajne kolumny planszy (te, na ktore otwieraja sie luki),
+  a drewno lezy pod siatka. `SHIP_GAP_CELLS = -(HULL_BOW_CELLS + HATCH_REAR_CELLS +
+  STRAND_LASH_CELLS)`, gdzie `HATCH_REAR_CELLS = -hullX(HATCH_COLUMN_UNITS, HULL_BEAM_UNITS)`
+  (~0.882) to odleglosc tylnej krawedzi luku od dziobu, a `STRAND_LASH_CELLS = 0.5 cell` - koncowka
+  liny za skrajna linia siatki. Suma
+  `SHIP_GAP_CELLS + HULL_BOW_CELLS + HATCH_REAR_CELLS + STRAND_LASH_CELLS = 0`, czyli **koniec liny
+  trafia w tylna krawedz luku niezaleznie od ksztaltu kadluba**: luk zostaje wolny, a jednostka
+  wychodzi tuz obok konca liny.
 * `hullScreenX/hullScreenY` - jedyne zrodlo pozycji czegokolwiek na statku: kadluba, lukow, masztu
   i obszarow dotyku. Statek jest rysowany w **rzucie perspektywicznym** pudelka (patrz punkt 7),
   a nie jako plaskie wielokaty, wiec jego pozycja i ksztalt zaleza od rozdzielczosci tylko przez
@@ -93,11 +98,14 @@ ekranem powrotu (`returnScreen`). Wyjscie z ekranu idzie przez `BattleResult` (p
    SHIP_AIR_CELLS`, wiec `boardX` odsuwa plansze od krawedzi sceny o caly statek - i o tyle samo
    rosnie `span` (punkt 7), zeby statek zmiescil sie w scenie bez zwezania planszy. Kontrola:
    daleka krawedz rufy gracza wypada `SHIP_ROOM - (SHIP_GAP_CELLS + HULL_BOW_CELLS) - HULL_STERN_CELLS
-   = SHIP_AIR_CELLS = 0.60 cell` od lewej krawedzi sceny, a symetrycznie po prawej - zadna czesc
-   statku nie wychodzi za scene ani nie wchodzi na plansze. **`SHIP_ROOM` jest zapasem, ktory trzyma
-   skale sceny**: `SHIP_GAP_CELLS` i `SHIP_AIR_CELLS` dziela go miedzy siebie (statki blizej siatki
-   = wiecej powietrza z tylu), wiec zmiana jednego bez drugiego przelicza `cell`, plansze i caly
-   uklad. `0.25 + 0.60` daje te same `5.495 cell`, co dawniej `0.50 + 0.35` - na 1920x1080
+   = SHIP_AIR_CELLS = 3.45 cell` od lewej krawedzi sceny, a symetrycznie po prawej - zadna czesc
+   statku nie wychodzi za scene. Plansza natomiast jest **pod statkami**: dziob gracza siega
+   `SHIP_GAP_CELLS + HULL_BOW_CELLS + HATCH_REAR_CELLS + STRAND_LASH_CELLS = 0` od skrajnej linii
+   siatki, wiec drewno przykrywa skrajna kolumne planszy (2.60 cell liczone od dziobu do rufy),
+   a rysowana pozniej siatka idzie po drewnie (patrz sekcja 4). **`SHIP_ROOM` jest zapasem, ktory
+   trzyma skale sceny**: `SHIP_GAP_CELLS` i `SHIP_AIR_CELLS` dziela go miedzy siebie (statki blizej
+   siatki = wiecej powietrza z tylu), wiec zmiana jednego bez drugiego przelicza `cell`, plansze
+   i caly uklad. `-2.60 + 3.4507` daje te same `5.495 cell`, co dawniej `0.25 + 0.60` - na 1920x1080
    `cell = 80.4 px` i `boardX = 463.6 px` zostaly bez zmian, przesunely sie tylko statki.
 10. **Horyzont jest przypiety do stolu, nie do siatki**: `horizonY = sceneBottom + cell *
     (HORIZON_HEIGHT_CELLS + SEA_DEPTH) / netScale`. Dzieki temu powiekszenie siatki zabiera
@@ -135,7 +143,7 @@ ScreenUtils.clear(BACKDROP)
 shapes.begin(Filled)
   drawSeaAndSky()   gradient nieba (1 px na wiersz) -> gradient morza -> drawHaze -> drawSun
                     -> drawClouds -> drawWaves -> drawSunGlitter -> drawFoam
-  drawBoard()       drawNet -> drawShips -> drawHatchColumn (gracz, wrog) -> kola zalogi
+  drawBoard()       drawShips -> drawHatchColumn (gracz, wrog) -> drawNet -> kola zalogi
   drawSceneMask()   maska sceny: tlo od sceneTop do gory ekranu
   drawControls()    kompas (tarcza, obwodka, 3 strzalki kierunkow poza obwodka, igla, plytka GO!)
                     -> przycisk ucieczki
@@ -151,13 +159,16 @@ shapes.end()
 
 Kolejnosc w `drawBoard` nie jest przypadkowa:
 
-* siatka idzie pierwsza, bo jest **plansza** - statki rysowane na niej przykrywaja konce lin
-  dokladnie tam, gdzie lina jest przywiazana do kadluba;
-* kadlub idzie **na** siatke (kolumny lukow 0 i 7), wiec siatka i kadlub zostaja widoczne po
-  swojej stronie styku, a luki sa juz rysowane na burcie; kazda sciana kadluba (i kazdy luk) jest
-  wypelniana i **od razu** obwiedziona ciemnym obrysem (sekcja 7), wiec obrys nie jest osobnym
-  przebiegiem i nic go nie zamalowuje; luk dostaje obrys po wszystkich czterech bokach, wiec jego
-  skos po burcie widac nawet wtedy, gdy wypelnienie luku ma ten sam kolor co sciana;
+* statki ida **pierwsze**, bo sa **polozone na planszy**: `SHIP_GAP_CELLS` jest ujemne, wiec dzioby
+  wchodza `-(SHIP_GAP_CELLS) + HULL_BOW_CELLS = 1.38 cell` na plansze i drewno przykrywa skrajny
+  pas kazdej strony. Siatka musi wiec pojsc **na drewno** - inaczej liny znikalyby pod kadlubem
+  dokladnie tam, gdzie sa przywiazane;
+* luki ida na kadluby (kazdy luk jest otworem w burcie, ktora statek pokazuje przeciwnikowi),
+  a siatka dopiero **na wszystko**: konce lin leza na drewnie, a nie pod nim, wiec widac, ze lina
+  jest zamocowana na burcie. Kazda sciana kadluba (i kazdy luk) jest wypelniana i **od razu**
+  obwiedziona ciemnym obrysem (sekcja 7), wiec obrys nie jest osobnym przebiegiem i nic go nie
+  zamalowuje; luk dostaje obrys po wszystkich czterech bokach, wiec jego skos po burcie widac nawet
+  wtedy, gdy wypelnienie luku ma ten sam kolor co sciana;
 * w samym `drawShip` **takielunek idzie pierwszy, a kadlub na niego** (`drawSailPanel` -> maszt ->
   burta -> rufa). Maszt stoi na srodku kadluba, czyli duzo dalej od oka niz rufa, wiec w rzucie
   z 15 stopni kadlub zaslania stope zagla - widoczna dolna krawedz zagla to **linia pokladu**,
@@ -219,7 +230,7 @@ Poza sekcja 1, ale tez strojenie w czasie: `ENEMY_THINK_SECONDS` (0.8) - ile "my
 | `MAST_BAND` | 2 | ile nieba nad plansza na maszty |
 | `SEA_DEPTH` | 1.30 | ile morza przed kadlubami |
 | `NET_SCALE` | 1.2 | o tyle wieksza jest siatka od czystego dopasowania |
-| `SHIP_ROOM` | 5.495 | **pol kadluba** miejsca z boku planszy na statek: `SHIP_GAP_CELLS + HULL_BOW_CELLS + HULL_STERN_CELLS + SHIP_AIR_CELLS` |
+| `SHIP_ROOM` | 5.495 | **pol kadluba** miejsca z boku planszy na statek: `SHIP_GAP_CELLS + HULL_BOW_CELLS + HULL_STERN_CELLS + SHIP_AIR_CELLS` = `-2.60 + 1.218 + 3.427 + 3.4507` |
 | `HORIZON_HEIGHT_CELLS` | 2.50 | wysokosc horyzontu nad stolem, odporna na `NET_SCALE` |
 
 ### 3. Niebo
@@ -295,7 +306,7 @@ Poza sekcja 1, ale tez strojenie w czasie: `ENEMY_THINK_SECONDS` (0.8) - ile "my
 |---|---|---|
 | `HULL_COLOR` | 107, 66, 36 | kolor burty - jedyny kolor poszycia, ani pasow, ani linii wodnej |
 | `STERN_SHADE` / `HULL_STERN_COLOR` | 0.86 / 92, 56, 30 | o tyle ciemniejsza jest sciana rufy, zeby rufa i burta czytaly sie jako dwie osobne sciany |
-| `HULL_EDGE_CELLS` | 0.03 cell | grubosc ciemnego obrysu kadluba i lukow (`ship view 15deg.png`); na 1920x1080 to 2.41 px, na 400x800 tylko 0.51 px |
+| `HULL_EDGE_CELLS` | 0.03 cell | grubosc ciemnego obrysu kadluba, lukow i zagla (`ship view 15deg.png`); na 1920x1080 to 2.41 px, na 400x800 tylko 0.51 px, wiec linia ma dolna granice 1 px |
 | `HULL_EDGE_SHADE` / `HULL_EDGE_COLOR` | 0.45 / 48, 29, 16 | obrys kadluba: ta sama barwa co burta, sciemniona o tyle |
 | `VIEW_YAW_DEG` | 15 | obrot kadluba wzgledem osi statku - kat, pod ktorym patrzymy (skos ze szkicu) |
 | `VIEW_DISTANCE_UNITS` | 19.5 | odleglosc oka od srodka kadluba; perspektywa skraca dlugosc i podnosi rufe |
@@ -305,9 +316,11 @@ Poza sekcja 1, ale tez strojenie w czasie: `ENEMY_THINK_SECONDS` (0.8) - ile "my
 | `FOCAL_CELLS` | 8.682 | ogniskowa rzutu w oczkach; wyliczona tak, zeby kolumna lukow byla dokladnie tak wysoka jak rzedy, ktore otwiera |
 | `HULL_BOW_CELLS` | 1.218 | o tyle dziob wystaje do przodu od srodka kadluba |
 | `HULL_STERN_CELLS` | 3.427 | o tyle rufa wystaje do tylu od srodka kadluba |
-| `SHIP_AIR_CELLS` | 0.60 cell | zapas powietrza miedzy rufa a krawedzia sceny; trzyma `SHIP_ROOM` na 5.495 cell, gdy statki stoja blizej siatki |
+| `HATCH_REAR_CELLS` | 0.882 | o tyle tylna krawedz luku lezy za skrajna linia siatki; to odleglosc od dziobu, wiec **ujemne** `hullX` (rosnie ku rufie) |
+| `STRAND_LASH_CELLS` | 0.5 cell | o pol oczka liny poziome wychodza poza skrajne linie siatki - dokladnie tyle, ile wynosi `HATCH_REAR_CELLS`, wiec koniec liny trafia na tylna krawedz luku |
+| `SHIP_AIR_CELLS` | 3.4507 cell | zapas powietrza miedzy rufa a krawedzia sceny; trzyma `SHIP_ROOM` na 5.495 cell, gdy statki stoja blizej siatki |
 | `SAIL_COLOR` | 196, 186, 158 | kolor zagli |
-| `SHIP_GAP_CELLS` | 0.25 cell | o cwierc oczka statek (kadlub i luki) stoi od siatki; razem z `STRAND_TUCK_CELLS` daje pol oczka, o ktore najwyzej wychodza liny |
+| `SHIP_GAP_CELLS` | -2.60 cell | o tyle statek **wchodzi na plansze**: dzioby wchodza `-SHIP_GAP_CELLS + HULL_BOW_CELLS = 1.38 cell`, a konce lin trafiaja dokladnie na tylne krawedzie lukow. Ujemna wartosc jest suma trzech czlonow (patrz sekcja 3, punkt 9) |
 | `RIGGING_MIN_SKY` | 0.4 cell | minimalna wysokosc takielunku nad stopa masztu (dolna granica) |
 | `RIGGING_OVERFLOW` | 0.5 cell | o tyle takielunek wychodzi ponad gorna krawedz sceny (`sceneTop`) |
 | `MAST_POSITION` | 0.42 | gdzie stoi maszt na kadlubie (udzial dlugosci od rufy, czyli prawie na srodku) |
@@ -315,6 +328,7 @@ Poza sekcja 1, ale tez strojenie w czasie: `ENEMY_THINK_SECONDS` (0.8) - ile "my
 | `SAIL_CLEW_INSET` | 0.06 | o tyle stopa jest wezsza od glowy - boki (liky) zbiegaja sie ku dolowi |
 | `SAIL_CLEW_RISE` | 0.2 | o tyle oba narozniki stopy (rogi szotowe) leza wyzej od najglebszego punktu stopy |
 | `SAIL_SEGMENTS` | 16 | na ile odcinkow dzielony jest sagi luk stopy |
+| `SAIL_EDGE_CELLS` / `SAIL_EDGE_SHADE` | `HULL_EDGE_CELLS` / `HULL_EDGE_SHADE` | obrys zagla: ta sama grubosc i to samo sciemnienie co obrys kadluba, tylko od `SAIL_COLOR` (`SAIL_EDGE_COLOR` = 88, 84, 71) |
 | `SAIL_BOTTOM` / `SAIL_TOP` | 0.24 / 0.95 | jedyny zagiel, udzialy wysokosci takielunku od stopy masztu: stopa wisi nad naroznikiem planszy, glowa poza scena |
 | `MAST_THICKNESS` / `MAST_TOP` | 0.176 cell / 1 | maszt: grubosc (gruby slup) i jak wysoko siega |
 
@@ -326,9 +340,16 @@ gore).
 
 Zagiel jest **0.8 szerokosci planszy** (`2 * SAIL_HALF_WIDTH`), wiec miesci sie w widoku: od zewnetrznej
 krawedzi sceny dzieli go jeszcze 1.09 cell na 1920x1080 (rosnie na wezszych ekranach, bo skala
-maleje szybciej niz margines), a oba zagla zostawiaja miedzy soba **4.01 cell** (0.50 szerokosci
-planszy) - ta przerwa nie zalezy od rozdzielczosci, bo oba maszty i obie polowy zagla licza sie
-z tego samego `cell`.
+maleje szybciej niz margines). Oba zagla natomiast **nachodza na siebie o 2.19 cell** (0.27
+szerokosci planszy) - oba maszty sa teraz tylko 2.81 cell od siebie, bo statki zostaly dociagniete
+do siatki, a kazdy zagiel ma 6.40 cell szerokosci. To nachodzenie nie zalezy od rozdzielczosci, bo
+oba maszty i obie polowy zagla licza sie z tego samego `cell`.
+
+Dwa plotna w jednym kolorze zlalyby sie w jeden szeroki zagiel, wiec kazdy zagiel ma wokol siebie
+cienka ciemna linie (`SAIL_EDGE_*`, `drawSailEdge`) - tak samo, jak kadlub ma obrys. Linia idzie po
+**wlasnym** plotnie (glowa, oba liki, stopa po tej samej krzywej co wypelnienie), wiec granica
+widoczna na ekranie to **tylny lik zagla wroga**: zagiel wroga rysowany jest drugi i to on przykrywa
+zagiel gracza.
 
 Ksztalt zagla to **kwadratowy zagiel rejowy**: prosta glowa wzdluz rei, dwa liki zbiegajace sie ku
 dolowi (`SAIL_CLEW_INSET`) i stopa, ktora **sagi** miedzy rogami szotowymi - jak plachta wypelniona
@@ -404,7 +425,9 @@ wszystkich czterech krawedziach, wiec ciemna linie ma tez poklad i linia wodnej.
 `rectLine` o **plaskich koncach**, wydluzony o polowe grubosci poza kazdy koniec, dzieki czemu na
 naroznikach kreski sie przecinaja i zamykaja naroznik bez szczeliny. Luki dostaly to samo
 (`hatchQuad`), tylko ciemniejszym kolorem i po czterech bokach **rzutu** luku, a nie pudelka -
-patrz punkt 9.
+patrz punkt 9. To samo robi `drawSailEdge` dla zagla (patrz nizej), a wszystkie trzy miejsca
+korzystaja z jednego pomocnika `bar(x1, y1, x2, y2, thickness)` - obrys to po prostu odcinek
+o grubosci `thickness`, wydluzony o `thickness / 2` poza kazdy koniec.
 
 Takielunek - **tylko jego dol jest widoczny**:
 
@@ -448,6 +471,16 @@ Zagiel jest wypukly, wiec jest rysowany jako **wachlarz trojkatow** (`SAIL_SEGME
 przy 16 odcinkach 18) ze srodka glowy - w tym punkcie pozniej siada maszt i zaslania szew.
 Zerowe alokacje, brak `polygon()`, brak triangulacji z uszami.
 
+`drawSailPanel` to dwa przebiegi: **`drawSail`** wypelnia plotno, a **`drawSailEdge`** kresli po nim
+ciemna linie `SAIL_EDGE_COLOR` o grubosci `SAIL_EDGE_CELLS` (te same wartosci co obrys kadluba).
+Obrys idzie po glowie, obu likach i stopie - stopa **ta sama krzywa Beziera** i tymi samymi
+`SAIL_SEGMENTS` odcinkami, co wypelnienie, wiec linia lezy dokladnie na krawedzi plotna. Grubosc jest
+podniesiona do **co najmniej 1 px** (`max(cell * SAIL_EDGE_CELLS, 1f)`), bo `ShapeRenderer` chodzi na
+OpenGL **bez antyaliasingu**: kreska wezsza niz piksel nie rozmywa sie, tylko wypada albo na jednym
+pikselu, albo na zadnym - zalezy, po ktorej stronie srodka piksela trafi jej srodek. Na 400x800
+`0.03 cell` to 0.51 px, wiec bez tej podlogi lik przerywalby sie na niektorych wierszach i oba
+plotna stykalyby sie na tych wierszach.
+
 Kolejnosc w `drawShip`: **najpierw takielunek, potem kadlub** - `drawSailPanel`, maszt, burta, rufa.
 Maszt stoi na srodku kadluba (glebokosc 17.57 jednostki), a rufa jest najblizej oka (9.45), wiec
 kadlub rysowany na koncu **zabiera zaglowi jego stope**: widoczna dolna krawedz zagla to linia
@@ -481,38 +514,56 @@ zagla - ucina tylko jego gore i wierzch masztu, a stopa zagla jest schowana za k
 |---|---|---|
 | `STRAND_THICKNESS` | 0.04 cell | grubosc liny |
 | `STRAND_EDGE` | 0.012 cell | ciemna obwodka wokol liny, zeby byla czytelna nad jasnym morzem |
-| `STRAND_TUCK_CELLS` | 0.25 cell | o tyle pozioma lina wchodzi pod kadlub |
-| `STRAND_REACH` | `1 + SHIP_GAP_CELLS + STRAND_TUCK_CELLS` = 1.50 cell | o tyle liny wychodza poza skrajne linie siatki, czyli 0.50 cell za skrajna kolumne planszy |
-| `HOLE_RADIUS` | 0.38 cell | promien rozdarcia |
-| `HOLE_SPOKES` | 6 | ile luznych linii przecina rozdarcie |
-| `HOLE_BACKDROP` | 0.86 | jaka czesc promienia pokazuje tlo |
-| `HOLE_SPOKE_REACH` / `HOLE_SPOKE_LENGTH` / `HOLE_SPOKE_THICKNESS` / `HOLE_SPOKE_TWIST` | 0.8 / 0.16 cell / 0.030 cell / 0.5 | luzne linie: odsadzenie, dlugosc, grubosc, skret |
-| `HOLE_SEGMENTS` | 28 | ile segmentow ma okrag rozdarcia |
+| `STRAND_LASH_CELLS` | 0.5 cell | o pol oczka pozioma lina wychodzi poza skrajna linie siatki - tyle wlasnie, ile wynosi `HATCH_REAR_CELLS`, wiec koniec liny siada na tylnej krawedzi luku |
+| `TORN_STUB_CELLS` | 0.12 cell | dlugosc kikuta, ktory zostaje przy wezle po przerwaniu liny |
+| `TORN_FRAY_CELLS` | 0.16 cell | dlugosc postrzepionego konca zwisajacego z kikuta w strone przerwy |
+| `TORN_FRAY_DROP` | 0.7 | o jaka czesc swojej dlugosci postrzepiony koniec opada w dol |
 | `ROPE_COLOR` / `ROPE_SHADE` | 217,214,199 / 133,128,117 | lina i jej obwodka |
-| `GAP_COLOR` | 10, 13, 23 | ciemna szpara w miejscu brakujacego kawalka siatki |
 
 Geometria siatki (`drawNet`):
 
 ```
 left   = cellLeft(1),  right = cellLeft(WIDTH - 1)      // linie 1..7
 bottom = cellBottom(HEIGHT - 1),  top = cellBottom(0) + cell
+reach  = cell * STRAND_LASH_CELLS
 liny poziome:  HEIGHT + 1 = 6 linii, od left - reach, dlugosc right - left + 2 * reach
 liny pionowe:  WIDTH - 1  = 7 linii, na cellLeft(1..7)
 ```
 
 Czyli **siatka ma 6 oczek w poziomie i 5 w pionie**, a kolumny z lukami (0 i 7) leza poza nia,
 na kadlubach. Jedno oczko siatki = jedno pole planszy, jednostka stoi zawsze w srodku oczka, nigdy
-na wezle. `STRAND_REACH` sklada sie z trzech kawalkow: **jednego oczka** (linie siatki zaczynaja sie
-dopiero na `cellLeft(1)`, wiec lina musi przejsc to oczko, zeby dojsc do statku), **szczeliny
-`SHIP_GAP_CELLS`** i **`STRAND_TUCK_CELLS`** pod kadlubem - dlatego szczelina czyta sie jako lina,
-a nie jako blad ukladu. Dwa ostatnie kawalki to razem **pol oczka**, wiec lina mija skrajna kolumne
-planszy (ta, na ktora otwieraja sie luki) o najwyzej pol oczka: **wlasnie ta polowka czyta sie jako
-zamocowanie siatki przy lukach**. Kadlub rysowany jest nad siatka, wiec linie na wysokosci sciany
-dziobu (na 1920x1080 sa to wiersze 2 i 3) koncza sie **pod drewnem**, a pozostale - wyzej i nizej,
-gdzie sciana dziobu jest nizsza niz siatka - koncza sie nad woda. Luki sa na **burcie** - rysowane
-rzutem z punktu 7 - ale linki nadal koncza sie w tych samych rzedach, wiec siatka nie wymagala
-zadnej zmiany. Narzedzie `_viz/` mierzy z obrazu odleglosc konca kazdej liny od krawedzi planszy
-(sekcja `siec: konce lin`) i pilnuje, zeby nie przekroczyla pol oczka.
+na wezle. `reach` to **koncowka liny za ostatnim wezlem**: linie siatki zaczynaja sie dopiero na
+`cellLeft(1)`, wiec lina musi przejsc jeszcze to jedno oczko, zeby dojsc do statku - i wlasnie ta
+koncowka, pol oczka dluga, siada na drewnie. Jest **wyprowadzona z polozenia statku**, a nie dobrana
+osobno: `SHIP_GAP_CELLS = -(HULL_BOW_CELLS + HATCH_REAR_CELLS + STRAND_LASH_CELLS)`, wiec
+`SHIP_GAP_CELLS + HULL_BOW_CELLS + HATCH_REAR_CELLS + STRAND_LASH_CELLS = 0` - koniec kazdej liny
+trafia dokladnie na **tylna krawedz luku**, niezaleznie od ksztaltu kadluba. To daje dwie rzeczy
+naraz: lina jest **zamocowana przy samym luku**, przez ktory wychodza jednostki, a luk **zostaje
+wolny** (jednostka wychodzi tuz obok konca liny, nie przez nia). Kadlub rysowany jest **pod**
+siatka (sekcja 4), wiec koncowki lin leza na drewnie i widac je az do burty. Luki sa na **burcie** -
+rysowane rzutem z punktu 7 - wiec linki konczace sie na drewnie sa na tej samej wysokosci, co
+otwory, ktore otwieraja. Narzedzie `_viz/` mierzy z obrazu, gdzie konczy sie kazda lina, i porownuje
+to z **policzona** tylna krawedzia luku (sekcja `siec: konce lin`), a takze sprawdza, ze za koncem
+liny jest drewno (60 px na 1920x1080).
+
+Rozdarcie siatki to **przerwana gorna pozioma lina oczka**. Kazda pozioma lina idzie przez
+`drawNetLine`, ktory tnie ja nad kazda komorka z `state.isHole(x, y)` danej linii (linia o indeksie
+`line` jest gorna krawedzia wiersza `HEIGHT - line`): w miejscu ciecia zostaje **kikut**
+(`TORN_STUB_CELLS` = 0.12 cell) przy kazdym z dwoch wezlow komorki, a z konca kazdego kikuta zwisa
+**postrzepiony koniec** (`drawTornKnot` -> `strandBar`) dlugosci `TORN_FRAY_CELLS` = 0.16 cell,
+opadajacy o `TORN_FRAY_DROP` = 0.7 swojej dlugosci. Sama komorka nie jest niczym zamalowana, wiec
+rozdarcie **pokazuje to, co jest pod siatka** - drewno kadluba albo niebo za nim - zamiast wygryzac
+w statku ciemna plame. Kikuty i strzepy rysuje ta sama funkcja co liny, wiec siatka z rozdraciami
+jest nadal rysowana **nad** kadlubami (sekcja 4).
+
+Rozdarcia sa czescia rozgrywki (`BattleState.moveCrewMember`: pirat, ktory wejdzie na rozdarte
+oczko, wypada za burte), wiec ich polozenia sa nietkniete. `BattleState.create` losuje kolumne z
+zakresu `1..WIDTH - 2`, odrzuca srodek i kolumny z wejsciem na luke, i odbija je
+punktowo-symetrycznie, wiec rozdarcia staja tylko w kolumnach `2..5`. Dla `VizScene.SEED` to
+`2,1 / 3,3 / 4,1 / 5,3`. Sprawdzone skanem pikseli (`_viz`, sekcja `siec: rozdarcia`): srodek gornej
+liny kazdej takiej komorki jest **pusty**, oba kikuty **trzymaja sie wezlow** (8 z 8 koncow), a w
+prostokatach obu kadlubow nie ma **ani jednego piksela** starej ciemnej plamy `10,13,23` (0 px na
+wszystkich 8 rozdzielczosciach).
 
 ### 9. Luki, zaloga i znaczniki
 
@@ -670,10 +721,10 @@ wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 d
 | Fale | `drawWaves` | 96 wierszy kresek, wiersze parzyste grzbiety, nieparzyste dolki |
 | Blyski slonca | `drawSunGlitter` | 190 kresek rozrzuconych wokol osi slonca |
 | Piana | `drawFoam` | 70 kresek w pierwszym planie |
-| Siatka | `drawNet` / `strand` | 12 lin poziomych + 10 pionowych, kazda jako prostokat w obwodce |
-| Rozdarcia | `drawHole` | kolo `GAP_COLOR` + kolo tla + 6 luznych linii |
+| Siatka | `drawNet` / `drawNetLine` / `strand` / `strandBar` | 12 lin poziomych + 10 pionowych, kazda jako prostokat w obwodce |
+| Rozdarcia | `drawNetLine` / `drawTornKnot` | przerwana gorna lina oczka: kikut przy kazdym wezle + postrzepiony koniec z kazdego kikuta |
 | Kadlub (dwie sciany) | `drawShip` / `hullFace` / `hullEdge` | burta (`HULL_COLOR`) i rufa (`HULL_STERN_COLOR`), kazda jako jeden czworokat na rzucie perspektywicznym (15 stopni od osi statku, patrz punkt 7), obwiedziony ciemnym obrysem; poklad i linia wody opadaja od rufy do dziobu, a wysokosc obu scian jest ta sama |
-| Maszt i zagiel | `drawShip` / `drawSailPanel` | jeden zagiel o szerokosci `0.8` planszy (wachlarz 18 trojkatow: prosta glowa, liki zbierajace sie ku dolowi, sagi luk stopy) + gruby maszt stojacy na rzucie pokladu; **rysowane przed kadlubem**, wiec stopa zagla zupelnie znika za burta i widoczna dolna krawedz zagla to linia pokladu; glowa zagla ucinana od gory przez `drawSceneMask` |
+| Maszt i zagiel | `drawShip` / `drawSailPanel` / `drawSail` / `drawSailEdge` | jeden zagiel o szerokosci `0.8` planszy (wachlarz 18 trojkatow: prosta glowa, liki zbierajace sie ku dolowi, sagi luk stopy) + ciemny obrys po glowie, likach i stopie + gruby maszt stojacy na rzucie pokladu; **rysowane przed kadlubem**, wiec stopa zagla zupelnie znika za burta i widoczna dolna krawedz zagla to linia pokladu; glowa zagla ucinana od gory przez `drawSceneMask` |
 | Luki | `drawHatchColumn` / `drawHatch` / `hatchQuad` | rzut **kwadratu na burcie** (rownoleglobok, boki pionowe, gorna i dolna krawedz po skosie burty) z ciemnym obrysem po czterech bokach, w kolumnie przy rufie, kolor zalezny od stanu (wnetrze plaskie, bez zaglebienia) |
 | Slupek oczekujacych | `drawHatch` | jedno male kolo na pirata, od gory luku w dol, na zewnatrz luku od strony rufy |
 | Znacznik wejscia | `drawEntryMarker` | zloty pierscien z tlem w srodku |
@@ -719,10 +770,11 @@ wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 d
 | Chce zmienic | Co ruszyc |
 |---|---|
 | Wieksza / mniejsza siatka miedzy statkami | `NET_SCALE` (horyzont zostaje na miejscu) |
-| Odsunac statki od siatki | `SHIP_GAP_CELLS` (liny ida za nimi, bo `STRAND_REACH` liczy sie z tego samego) **razem z `SHIP_AIR_CELLS`** - dopoki ich suma zostaje ta sama, skala sceny sie nie zmienia; uwaga: `SHIP_GAP_CELLS + STRAND_TUCK_CELLS` to odleglosc konca liny za skrajna kolumna planszy i nie powinna przekroczyc pol oczka |
-| Inna dlugosc lin w szczelinie | `STRAND_TUCK_CELLS` |
+| Odsunac statki od siatki | `SHIP_GAP_CELLS` **razem z `SHIP_AIR_CELLS`** - dopoki ich suma zostaje ta sama, skala sceny sie nie zmienia. Uwaga: `SHIP_GAP_CELLS` jest **wyprowadzone** z konca liny (`-(HULL_BOW_CELLS + HATCH_REAR_CELLS + STRAND_LASH_CELLS)`), wiec reczna zmiana rozjedzie konce lin z tylnymi krawedziami lukow - to wlasnie ta tozsamosc sprawdza `_viz/` |
+| Inna dlugosc koncowki liny za skrajna linia siatki | `STRAND_LASH_CELLS` - konce lin przesuna sie razem z lukami (przez `SHIP_GAP_CELLS`) |
+| Wyrazniejszy / slabszy szew miedzy zaglami | `SAIL_EDGE_CELLS`, `SAIL_EDGE_SHADE` (albo `SAIL_EDGE_COLOR` na sztywno) |
 | Grubsza lina / wyrazniejsza siatka | `STRAND_THICKNESS`, `STRAND_EDGE` |
-| Wieksze rozdarcia | `HOLE_RADIUS`, ewentualnie `HOLE_SPOKES` |
+| Wieksze / mniejsze rozdarcia (dluzsza przerwa, dluzsze strzepy) | `TORN_STUB_CELLS`, `TORN_FRAY_CELLS`, `TORN_FRAY_DROP` |
 | Inny kolor kadluba / zagli | `HULL_COLOR`, `SAIL_COLOR` |
 | Szerszy lub wezszy / dluzszy lub krotszy / wyzszy lub nizszy kadlub | `HULL_BEAM_UNITS`, `HULL_LENGTH_UNITS`, `HULL_HEIGHT_UNITS` - reszta (`FOCAL_CELLS`, `HULL_BOW_CELLS`, `HULL_STERN_CELLS`, `SHIP_ROOM`) **przelicza sie sama** |
 | Inny kat widoku (mniej / bardziej z boku) | `VIEW_YAW_DEG` (0 = patrzymy wzdluz statku, 90 = z burty) |
@@ -786,13 +838,16 @@ wynika z `NET_SCALE`. Narzedzie wypisuje te liczby samo (sekcja 12).
 Przy zmianach w statkach warto sprawdzic cztery rzeczy, ktore latwo zepsuc nie zmieniajac przy tym
 zadnej stalej wprost:
 
-* **kadlub nie wchodzi na siatke** - `SHIP_ROOM` liczy sie z `SHIP_GAP_CELLS`, `HULL_BOW_CELLS`
-  i `HULL_STERN_CELLS`, wiec kazda zmiana `VIEW_YAW_DEG`, `VIEW_DISTANCE_UNITS` albo wymiarow
-  kadluba przesuwa rowniez polozenie statku i szerokosc sceny;
-* **koniec liny zostaje w pol oczka od planszy** - blok `siec: konce lin` w `_viz/out/measurements.txt`
-  podaje dla kazdego z 6 rzedow odleglosc konca liny od krawedzi planszy i musi ona wynosic
-  `<= 0.50 cell` (plus ciemna obwodka `STRAND_EDGE` i 1 px rasteru); pilnuje tego para
-  `SHIP_GAP_CELLS` + `STRAND_TUCK_CELLS`, ktorej suma daje wlasnie pol oczka;
+* **kadlub wchodzi na siatke i jest pod nia** - `SHIP_ROOM` liczy sie z `SHIP_GAP_CELLS`,
+  `HULL_BOW_CELLS` i `HULL_STERN_CELLS`, wiec kazda zmiana `VIEW_YAW_DEG`, `VIEW_DISTANCE_UNITS`
+  albo wymiarow kadluba przesuwa rowniez polozenie statku i szerokosc sceny; dzioby maja wchodzic
+  `-SHIP_GAP_CELLS + HULL_BOW_CELLS = 1.38 cell` na plansze, bo tylko wtedy drewno widac pod linami;
+* **koniec liny trafia na tylna krawedz luku** - blok `siec: konce lin` w `_viz/out/measurements.txt`
+  podaje dla kazdego z 6 rzedow polozenie konca liny, policzona tylna krawedz luku i ich roznice;
+  roznica musi zmiescic sie w tolerancji (`0.07 cell` = obrys luku + 1 px rasteru), a kolumna
+  `drewno za koncem` musi pokazac `DREWNO`; ta sama sekcja sprawdza, ze luk **zostaje wolny**.
+  Pilnuje tego tozsamosc `SHIP_GAP_CELLS + HULL_BOW_CELLS + HATCH_REAR_CELLS + STRAND_LASH_CELLS = 0`,
+  czyli `SHIP_GAP_CELLS` **wyprowadzone** z `HULL_BOW_CELLS`, `HATCH_REAR_CELLS` i `STRAND_LASH_CELLS`;
 * **stopa zagla zostaje nad plansza** - wiersz `zagle nad plansza` musi byc dodatni w kazdej
   rozdzielczosci (na 1920x1080 jest to `+5.20 px`); zagiel rysowany jest przed kadlubem, wiec jego
   dol jest ukryty i widoczna krawedz zagla to linia pokladu, ale sam zagiel nie moze wejsc na plansze;
@@ -886,12 +941,22 @@ Inne tryby (pojedynczo) wybiera sie wlasciwoscia `-PvizMain=`, np. `-PvizMain=vi
   lukow; gdy luk jest wezszy niz `MIN_HATCH_READ_PX = 10 px`, blok podaje sam najwyzszy piksel
   obrysu zamiast dwoch naroznikow;
 * **konce lin** - trzeci skan, takze na obrazie bez nakladki: dla kazdego z 6 rzedow siatki blok
-  `siec: konce lin` podaje odleglosc konca poziomej liny od krawedzi planszy (w `cell`) oraz
-  najblizszy planszy punkt drewna kadluba w tym rzedzie. Wynik `NA DREWNIE` znaczy, ze lina wchodzi
-  pod dziob i konczy sie niewidoczna, `W POWIETRZU` - ze wolny koniec wisi nad woda. Ostatnia linia
-  pilnuje reguly: najdalszy koniec liny nie moze wyjsc wiecej niz **pol oczka** za skrajna kolumne
-  planszy (limit to `0.50 cell` + obwodka `STRAND_EDGE` + 1 px rasteru). Pomiar obejmuje obwodke
-  liny, bo na waskich ekranach (400x800, lina ma `0.68 px`) sama lina bywa ciensza niz piksel;
+  `siec: konce lin` podaje, o ile oczek koniec poziomej liny wychodzi za skrajna linie siatki,
+  **policzona** odleglosc tylnej krawedzi luku od tej samej linii i ich roznice, a takze ile
+  pikseli drewna lezy za koncem liny (`DREWNO` / `WODA`). Ostatnie dwie linie bloku pilnuja reguly:
+  koniec liny ma trafic na tylna krawedz luku (tolerancja to obrys luku `HATCH_EDGE` plus 1 px
+  rasteru, na 1920x1080 `0.07 cell`), a luk ma **zostac wolny** - otwor luku zaczyna sie dopiero
+  za koncem liny. Pomiar obejmuje obwodke liny, bo na waskich ekranach (400x800, lina ma `0.68 px`)
+  sama lina bywa ciensza niz piksel;
+* **szew miedzy zaglami** - czwarty skan, na obrazie bez nakladki: blok `zagle: obrys, ktory
+  rozdziela oba plotna` podaje, o ile pikseli i oczek oba zagla **na siebie nachodza** (zagiel
+  wroga rysowany jest drugi, wiec jego tylny lik lezy na zaglu gracza), a potem idzie wiersz po
+  wierszu od rogu szotowego zagla wroga do maski i sprawdza, czy w oknie 5 px wokol tego liku jest
+  **choc jeden piksel obrysu** - inaczej dwa plotna w jednym kolorze zlalyby sie w jeden zagiel.
+  Wynik `N z N wierszy ... OK` znaczy, ze szew jest ciagly w calej widocznej wysokosci zagla
+  (22-153 wierszy, zaleznie od rozdzielczosci); blok podaje tez oba kolory (`rgb`) i grubosc obrysu
+  w pikselach. To jedyna kontrola, ktora widzi podloge `max(cell * SAIL_EDGE_CELLS, 1f)` - bez niej
+  na 400x800 (`0.51 px`) obrys przerywalby sie na czesci wierszy;
 * **sterowanie** - `compassX`, `compassY`, `compassRadius`, promien tarczy "GO!" (`COMPASS_GO_RADIUS`),
   promien okregu liter (`COMPASS_LETTER_RING`), rozmiar napisu (`COMPASS_LABEL_SIZE`), dlugosc i
   szerokosc igly (`igla dl./szer.`), zasieg grota strzalki (`grot strzalki R`), polowa szerokosci

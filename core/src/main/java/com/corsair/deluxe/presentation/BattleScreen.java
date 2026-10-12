@@ -293,11 +293,14 @@ public class BattleScreen extends ScreenAdapter {
     /** The sail, hung on the mast above the hull. */
     private static final Color SAIL_COLOR = color(196, 186, 158);
     /**
-     * The whole ship, deck squares included, stands this far off the net. The strands run this far and a
-     * tuck further, so together with STRAND_TUCK_CELLS this is what keeps them within half a cell of the
-     * board's outermost column, the one the hatches open onto.
+     * The sail carries the same dark line round it as the hull does: the two ships lie so close that
+     * their sails overlap, and two panels of one colour would otherwise read as a single sheet. The
+     * line goes over the cloth of its own sail, and the sail of the ship drawn second - the enemy -
+     * goes over the player's, so the line that separates the two panels is that ship's rear leach.
      */
-    private static final float SHIP_GAP_CELLS = 0.25f;
+    private static final float SAIL_EDGE_CELLS = HULL_EDGE_CELLS;
+    private static final float SAIL_EDGE_SHADE = HULL_EDGE_SHADE;
+    private static final Color SAIL_EDGE_COLOR = shade(SAIL_COLOR, SAIL_EDGE_SHADE);
 
     /**
      * The hatch column on the wall facing the board: one hatch per row of the board, each a unit
@@ -325,14 +328,33 @@ public class BattleScreen extends ScreenAdapter {
      */
     private static final float HULL_BOW_CELLS = hullX(HULL_LENGTH_UNITS, HULL_BEAM_UNITS);
     private static final float HULL_STERN_CELLS = -hullX(0f, 0f);
+    /** How far the rear jamb of the hatch column stands behind the middle of the ship, in board cells. */
+    private static final float HATCH_REAR_CELLS = -hullX(HATCH_COLUMN_UNITS, HULL_BEAM_UNITS);
     /**
-     * Room beside the net for a whole hull, the strands that tuck under it and a little air: the gap the
-     * ship stands off, its bow's reach back towards the net, its stern's reach away from it, and the air.
-     * The board sits this far from the edge of the scene, so no part of a ship is ever over the net.
-     * The air holds what the gap gave up: the ships moved a quarter of a cell closer to the net, so the
-     * room - and with it the size of the board, the panel and the text - stays exactly where it was.
+     * The lashing: how far a horizontal strand of the net runs past the outermost line of the net, in
+     * cells. It is the rope left over past the last knot, and it is what the ship is placed from - the
+     * net has to read as made fast at the hatches the units come out of, so the wood ends on the rope
+     * rather than the rope being fitted to wherever the wood happens to be.
      */
-    private static final float SHIP_AIR_CELLS = 0.60f;
+    private static final float STRAND_LASH_CELLS = 0.5f;
+    /**
+     * The whole ship, deck squares included, stands this far off the net - with the rear jamb of its
+     * hatch column exactly on the ends of the strands, so the lashings land on the wood beside the
+     * doorways. The gap is therefore negative: the hulls are pulled in until they lie over the
+     * outermost columns of the board, and the net is drawn over the hulls. The bow's reach towards the
+     * net, the place of the hatch on the wall and the lashing are together the whole distance from the
+     * middle of the ship to the outermost line of the net, and this is what is left of it here.
+     */
+    private static final float SHIP_GAP_CELLS = -(HULL_BOW_CELLS + HATCH_REAR_CELLS + STRAND_LASH_CELLS);
+    /**
+     * Room beside the net for a whole hull, the strands that reach it and the water beyond its stern:
+     * the gap the ship stands off - negative now that it is pulled in over the board - its bow's reach
+     * towards the net, its stern's reach away from it, and the air. The board sits this far from the
+     * edge of the scene. The air holds what the gap gave up: the ships moved two and three fifths of a
+     * cell in towards the net, so the room - and with it the size of the board, the panel and the text -
+     * stays exactly where it was.
+     */
+    private static final float SHIP_AIR_CELLS = 3.4507f;
     private static final float SHIP_ROOM = SHIP_GAP_CELLS + HULL_BOW_CELLS + HULL_STERN_CELLS + SHIP_AIR_CELLS;
     /**
      * The rigging runs from the deck up to the top of the sky band and a little past it, so only its
@@ -371,39 +393,26 @@ public class BattleScreen extends ScreenAdapter {
     private static final float MAST_THICKNESS = 0.176f;
     private static final float MAST_TOP = 1f;
 
-    // --- 8. Net (rope and torn openings) ---------------------------------------------------------
+    // --- 8. Net (rope and torn cells) ------------------------------------------------------------
 
-    /** Thickness of a strand, and of the dark outline that keeps it readable over the sea. */
+    /**
+     * Thickness of a strand, and of the dark outline that keeps it readable over the sea. How far the
+     * strands run past the net is STRAND_LASH_CELLS, up with the place of the ships: the lashing is what
+     * the ship is measured from, so the two cannot be read apart.
+     */
     private static final float STRAND_THICKNESS = 0.04f;
     private static final float STRAND_EDGE = 0.012f;
     /**
-     * How far past the net the strands run. The lines of the net start one cell in from the edge of the
-     * board, so a strand has to cross that cell, the gap the ships stand off and a little of the hull
-     * before it ends: the ships are drawn over the net, so where the wood reaches far enough out the
-     * strands disappear under it instead of stopping in mid air. The gap and this tuck together are the
-     * overhang past the board's outermost column, the one the hatches open onto, and they are held to
-     * half a cell so the net reads as made fast to that column. Only the strands level with the middle
-     * of the bow's wall reach the wood; the higher and lower ones end over the sea, because the wall
-     * there is shorter than the net is tall.
+     * A torn cell: the rope over it is broken, and what is left of it are two stubs, one hanging off
+     * each knot of the cell, with a frayed end drooping from each into the gap. Nothing is painted on
+     * the cell itself, so where the net lies over a hull the break shows the wood the mesh was torn
+     * away from, instead of a bite out of the ship.
      */
-    private static final float STRAND_TUCK_CELLS = 0.25f;
-    private static final float STRAND_REACH = 1f + SHIP_GAP_CELLS + STRAND_TUCK_CELLS;
-    /** A torn opening: its radius, and how many slack strands cross it. */
-    private static final float HOLE_RADIUS = 0.38f;
-    private static final int HOLE_SPOKES = 6;
-    /** Inside the torn rim the backdrop shows through, over this much of the radius. */
-    private static final float HOLE_BACKDROP = 0.86f;
-    /** The slack strands: how far out they sit, how long and thick they are, and their twist. */
-    private static final float HOLE_SPOKE_REACH = 0.8f;
-    private static final float HOLE_SPOKE_LENGTH = 0.16f;
-    private static final float HOLE_SPOKE_THICKNESS = 0.030f;
-    private static final float HOLE_SPOKE_TWIST = 0.5f;
-    /** The opening is a circle of this many segments. */
-    private static final int HOLE_SEGMENTS = 28;
+    private static final float TORN_STUB_CELLS = 0.12f;
+    private static final float TORN_FRAY_CELLS = 0.16f;
+    private static final float TORN_FRAY_DROP = 0.7f;
     private static final Color ROPE_COLOR = color(217, 214, 199);
     private static final Color ROPE_SHADE = color(133, 128, 117);
-    /** What shows through a torn opening: the dark gap of a piece missing from the net. */
-    private static final Color GAP_COLOR = color(10, 13, 23);
 
     // --- 9. Hatches, crew and markers ------------------------------------------------------------
 
@@ -890,8 +899,8 @@ public class BattleScreen extends ScreenAdapter {
      * Where the middle of one hull sits, in screen x. The whole ship stands SHIP_GAP_CELLS off the edge
      * of the net, and its bow - the nearest point of the hull, the one the projection turns towards the
      * board - reaches HULL_BOW_CELLS in from the middle of the ship, so the middle, which every hull
-     * point is measured from, is that much further out. The hulls are therefore beside the net, never
-     * over it.
+     * point is measured from, is that much further out. The gap is negative, so the bow reaches over
+     * the board's outermost column and the lashings of the net end on the wood beside the hatches.
      */
     private float hullNear(boolean player) {
         float edge = player ? boardX : cellLeft(BattleState.WIDTH);
@@ -1155,13 +1164,14 @@ public class BattleScreen extends ScreenAdapter {
     private void drawBoard() {
         float pulse = HATCH_PULSE_BASE + HATCH_PULSE_SWING * (float) Math.sin(elapsed * HATCH_PULSE_SPEED);
 
-        // The net is the playfield, so it goes down first: the two hulls drawn over it cover the ends of
-        // the strands, right where the rope is lashed to the ship. The hatches then go on the hulls, so
-        // they read as openings in the side the ship shows the enemy rather than as squares on the net.
-        drawNet();
+        // The ships go down first: they are pulled in until their hatches meet the lashings of the net,
+        // so the wood lies over the outermost columns of the board and the net has to go over the wood.
+        // The hatches sit on the hulls, as openings in the side each ship shows the enemy, and the net
+        // then goes over everything, with the crew on top of it: the units stand on the net, not under.
         drawShips();
         drawHatchColumn(true, pulse);
         drawHatchColumn(false, pulse);
+        drawNet();
 
         for (int x = 0; x < BattleState.WIDTH; x++) {
             for (int y = 0; y < BattleState.HEIGHT; y++) {
@@ -1344,13 +1354,17 @@ public class BattleScreen extends ScreenAdapter {
      * notch a flat end would.
      */
     private void hullEdge(float x1, float y1, float x2, float y2) {
+        bar(x1, y1, x2, y2, cell * HULL_EDGE_CELLS);
+    }
+
+    /** One bar of a dark line of the given thickness, stretched half that past each end. */
+    private void bar(float x1, float y1, float x2, float y2, float thickness) {
         float dx = x2 - x1;
         float dy = y2 - y1;
         float length = (float) Math.sqrt(dx * dx + dy * dy);
         if (length < 1e-4f) {
             return;
         }
-        float thickness = cell * HULL_EDGE_CELLS;
         float over = thickness / 2f / length;
         shapes.rectLine(x1 - dx * over, y1 - dy * over, x2 + dx * over, y2 + dy * over, thickness);
     }
@@ -1365,8 +1379,18 @@ public class BattleScreen extends ScreenAdapter {
      * clews, and a foot sagging between them, so the cloth reads as a sail filled with wind rather than
      * a flat panel. The foot is a cubic curve that leaves each clew along its own leach, which both
      * rounds the clews off and leaves no corner where the foot meets a leach.
+     *
+     * <p>The cloth is drawn first and the dark line round it after, the same way the hull is drawn: the
+     * two ships lie so close that their sails overlap, and two panels of one colour with no line between
+     * them would read as a single sheet of cloth.
      */
     private void drawSailPanel(float mastX, float halfWidth, float bottom, float top) {
+        drawSail(mastX, halfWidth, bottom, top);
+        drawSailEdge(mastX, halfWidth, bottom, top);
+    }
+
+    /** The cloth of one sail, filled with SAIL_COLOR, in the shape described above. */
+    private void drawSail(float mastX, float halfWidth, float bottom, float top) {
         float clewHalf = halfWidth * (1f - SAIL_CLEW_INSET);
         float clewY = bottom + halfWidth * SAIL_CLEW_RISE;
         // The foot runs from one clew to the other, and with this control-point spread it bottoms out at
@@ -1405,33 +1429,111 @@ public class BattleScreen extends ScreenAdapter {
     }
 
     /**
+     * The dark line round the sail: the head, both leaches and the foot. The foot is the same cubic the
+     * cloth is filled from, walked in the same steps, so the line lies exactly on the edge of the cloth
+     * the whole way round the sag between the clews.
+     */
+    private void drawSailEdge(float mastX, float halfWidth, float bottom, float top) {
+        float clewHalf = halfWidth * (1f - SAIL_CLEW_INSET);
+        float clewY = bottom + halfWidth * SAIL_CLEW_RISE;
+        float lean = halfWidth - clewHalf;
+        float drop = top - clewY;
+        float spread = (clewY - bottom) / (0.75f * drop);
+        float startX = mastX + clewHalf;
+        float endX = mastX - clewHalf;
+        float c1x = startX - spread * lean;
+        float c1y = clewY - spread * drop;
+        float c2x = endX + spread * lean;
+        // ShapeRenderer draws with no antialiasing, so a bar narrower than one pixel falls between two
+        // pixel centres on some rows and leaves a gap there. This line has to be continuous: it is the
+        // only thing separating two sails of one colour. Hence the floor of one pixel.
+        float thickness = Math.max(cell * SAIL_EDGE_CELLS, 1f);
+
+        shapes.setColor(SAIL_EDGE_COLOR);
+        bar(mastX - halfWidth, top, mastX + halfWidth, top, thickness);
+        bar(mastX + halfWidth, top, startX, clewY, thickness);
+        bar(endX, clewY, mastX - halfWidth, top, thickness);
+        float prevX = startX;
+        float prevY = clewY;
+        for (int i = 1; i <= SAIL_SEGMENTS; i++) {
+            float t = i / (float) SAIL_SEGMENTS;
+            float u = 1f - t;
+            float w0 = u * u * u;
+            float w1 = 3f * u * u * t;
+            float w2 = 3f * u * t * t;
+            float w3 = t * t * t;
+            float x = w0 * startX + w1 * c1x + w2 * c2x + w3 * endX;
+            float y = w0 * clewY + w1 * c1y + w2 * c1y + w3 * clewY;
+            bar(prevX, prevY, x, y, thickness);
+            prevX = x;
+            prevY = y;
+        }
+    }
+
+    /**
      * The boarding net strung between the two hulls: one rope along every grid line, so a mesh opening
      * is exactly one cell wide and a unit stands in the middle of an opening, never on a knot where two
      * strands cross. The openings show the sea and the sky behind them. The horizontal ropes run past
-     * the outermost grid lines, across the gap to the ships, and tuck under their hulls.
+     * the outermost grid lines, over the water and over the wood, and end on the hulls beside their
+     * hatches, where they are made fast: the net is drawn over the ships, so the lashings stay in sight
+     * the whole way from the board to the wood.
      */
     private void drawNet() {
         float thickness = cell * STRAND_THICKNESS;
-        float reach = cell * STRAND_REACH;
+        float reach = cell * STRAND_LASH_CELLS;
         float left = cellLeft(1);
         float right = cellLeft(BattleState.WIDTH - 1);
         float bottom = cellBottom(BattleState.HEIGHT - 1);
         float top = cellBottom(0) + cell;
 
         for (int line = 0; line <= BattleState.HEIGHT; line++) {
-            strand(left - reach, bottom + line * cell - thickness / 2f, right - left + 2f * reach, thickness);
+            drawNetLine(line, bottom + line * cell - thickness / 2f, left - reach, right + reach,
+                    thickness);
         }
         for (int line = 1; line < BattleState.WIDTH; line++) {
             strand(cellLeft(line) - thickness / 2f, bottom, thickness, top - bottom);
         }
+    }
 
-        for (int x = 0; x < BattleState.WIDTH; x++) {
-            for (int y = 0; y < BattleState.HEIGHT; y++) {
-                if (state.isHole(x, y)) {
-                    drawHole(x, y);
-                }
-            }
+    /**
+     * One horizontal rope of the net, run from one lashing to the other, and broken over every torn
+     * cell of the row it tops: a tear of the net is the missing piece of this rope, so a hole in a cell
+     * that lies over a hull shows the wood the mesh was torn away from, and never a bite out of the
+     * ship. The rope tops the row under it, so the line of a row is the net's line of index HEIGHT - y.
+     */
+    private void drawNetLine(int line, float y, float from, float to, float thickness) {
+        int row = BattleState.HEIGHT - line;
+        if (row < 0 || row >= BattleState.HEIGHT) {
+            strand(from, y, to - from, thickness);
+            return;
         }
+        float run = from;
+        for (int x = 0; x < BattleState.WIDTH; x++) {
+            if (!state.isHole(x, row)) {
+                continue;
+            }
+            float cut = cellLeft(x);
+            if (cut > run) {
+                strand(run, y, cut - run, thickness);
+            }
+            drawTornKnot(cut, y, thickness, 1f);
+            drawTornKnot(cut + cell, y, thickness, -1f);
+            run = cut + cell;
+        }
+        if (to > run) {
+            strand(run, y, to - run, thickness);
+        }
+    }
+
+    /** What a broken rope leaves at one of the two knots of the cell: a stub, and its frayed end. */
+    private void drawTornKnot(float knot, float y, float thickness, float towards) {
+        float stub = cell * TORN_STUB_CELLS;
+        float end = knot + towards * stub;
+        strand(towards > 0f ? knot : end, y, stub, thickness);
+
+        float fray = cell * TORN_FRAY_CELLS;
+        strandBar(end, y + thickness / 2f, end + towards * fray,
+                y + thickness / 2f - fray * TORN_FRAY_DROP, thickness);
     }
 
     /** One strand, with a darker outline so the mesh stays readable against the bright sea. */
@@ -1443,25 +1545,13 @@ public class BattleScreen extends ScreenAdapter {
         shapes.rect(x, y, w, h);
     }
 
-    /** A torn opening: the backdrop shows through it, ringed by rope and crossed by slack strands. */
-    private void drawHole(int x, int y) {
-        float cx = cellLeft(x) + cell / 2f;
-        float cy = cellBottom(y) + cell / 2f;
-        float radius = cell * HOLE_RADIUS;
-
-        shapes.setColor(GAP_COLOR);
-        shapes.circle(cx, cy, radius, HOLE_SEGMENTS);
-        backdropAt(cy, tint);
-        shapes.setColor(tint);
-        shapes.circle(cx, cy, radius * HOLE_BACKDROP, HOLE_SEGMENTS);
-
+    /** One strand that does not run straight, outlined the way the straight ones are. */
+    private void strandBar(float x1, float y1, float x2, float y2, float thickness) {
+        float edge = cell * STRAND_EDGE;
+        shapes.setColor(ROPE_SHADE);
+        bar(x1, y1, x2, y2, thickness + 2f * edge);
         shapes.setColor(ROPE_COLOR);
-        for (int i = 0; i < HOLE_SPOKES; i++) {
-            float angle = (float) (i * Math.PI / HOLE_SPOKES) + HOLE_SPOKE_TWIST;
-            shapes.rect(cx + (float) Math.cos(angle) * radius * HOLE_SPOKE_REACH,
-                    cy + (float) Math.sin(angle) * radius * HOLE_SPOKE_REACH,
-                    cell * HOLE_SPOKE_LENGTH, cell * HOLE_SPOKE_THICKNESS);
-        }
+        bar(x1, y1, x2, y2, thickness);
     }
 
     /** Whatever the background shows at this height: the sea below the horizon, the sky above it. */
