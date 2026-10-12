@@ -207,6 +207,7 @@ Wartosci w nawiasach to stan obecny. "Jedn." mowi, jak czytac liczbe: `cell` = u
 | `TEXT_GAP` | linie | 0.12 | odstep miedzy blokami napisow |
 | `MARGIN_MIN` / `MARGIN_FRACTION` | px / 0..1 | 12 / 0.02 | margines ramki ekranu |
 | `PIXEL_CENTRE` | px | 0.5 | srodek jednopikselowego wiersza przy probkowaniu gradientow |
+| `MIN_LINE_PX` | px | 1 | dolna granica grubosci **kazdej** cienkiej linii: fal, polysku, piany, szwu zagla, obrysu kadluba i lukow oraz lin siatki. `ShapeRenderer` chodzi bez antyaliasingu, wiec kreska wezsza niz piksel nie rozmywa sie, tylko wypada albo na jednym pikselu, albo na zadnym - zalezy, po ktorej stronie srodka piksela trafi jej srodek. Bez tej podlogi na 400x800 (`cell` 16.85 px) lina siatki ma `0.67 px`, a obrys kadluba `0.51 px` |
 | `WORST_TURN_LINE` | tekst | - | najdluzszy wariant linii tury (paso gory liczy sie dla niego) |
 | `LOG_RESERVE` | tekst | - | najdluzszy wariant logu (paso dolu liczy sie dla niego) |
 | `LOG_BAND_LINES` / `LOG_BAND_PAD` | linie | 1.6 / 0.4 | minimalna wysokosc pasa logu i oddech nad logiem |
@@ -306,7 +307,7 @@ Poza sekcja 1, ale tez strojenie w czasie: `ENEMY_THINK_SECONDS` (0.8) - ile "my
 |---|---|---|
 | `HULL_COLOR` | 107, 66, 36 | kolor burty - jedyny kolor poszycia, ani pasow, ani linii wodnej |
 | `STERN_SHADE` / `HULL_STERN_COLOR` | 0.86 / 92, 56, 30 | o tyle ciemniejsza jest sciana rufy, zeby rufa i burta czytaly sie jako dwie osobne sciany |
-| `HULL_EDGE_CELLS` | 0.03 cell | grubosc ciemnego obrysu kadluba, lukow i zagla (`ship view 15deg.png`); na 1920x1080 to 2.41 px, na 400x800 tylko 0.51 px, wiec linia ma dolna granice 1 px |
+| `HULL_EDGE_CELLS` | 0.03 cell | grubosc ciemnego obrysu kadluba, lukow i zagla (`ship view 15deg.png`); na 1920x1080 to 2.41 px, na 400x800 tylko 0.51 px, wiec linia jest podnoszona do dolnej granicy `MIN_LINE_PX` (1 px) |
 | `HULL_EDGE_SHADE` / `HULL_EDGE_COLOR` | 0.45 / 48, 29, 16 | obrys kadluba: ta sama barwa co burta, sciemniona o tyle |
 | `VIEW_YAW_DEG` | 15 | obrot kadluba wzgledem osi statku - kat, pod ktorym patrzymy (skos ze szkicu) |
 | `VIEW_DISTANCE_UNITS` | 19.5 | odleglosc oka od srodka kadluba; perspektywa skraca dlugosc i podnosi rufe |
@@ -475,8 +476,9 @@ Zerowe alokacje, brak `polygon()`, brak triangulacji z uszami.
 ciemna linie `SAIL_EDGE_COLOR` o grubosci `SAIL_EDGE_CELLS` (te same wartosci co obrys kadluba).
 Obrys idzie po glowie, obu likach i stopie - stopa **ta sama krzywa Beziera** i tymi samymi
 `SAIL_SEGMENTS` odcinkami, co wypelnienie, wiec linia lezy dokladnie na krawedzi plotna. Grubosc jest
-podniesiona do **co najmniej 1 px** (`max(cell * SAIL_EDGE_CELLS, 1f)`), bo `ShapeRenderer` chodzi na
-OpenGL **bez antyaliasingu**: kreska wezsza niz piksel nie rozmywa sie, tylko wypada albo na jednym
+podniesiona do **co najmniej `MIN_LINE_PX`** (`max(cell * SAIL_EDGE_CELLS, MIN_LINE_PX)`), bo
+`ShapeRenderer` chodzi na OpenGL **bez antyaliasingu**: kreska wezsza niz piksel nie rozmywa sie,
+tylko wypada albo na jednym
 pikselu, albo na zadnym - zalezy, po ktorej stronie srodka piksela trafi jej srodek. Na 400x800
 `0.03 cell` to 0.51 px, wiec bez tej podlogi lik przerywalby sie na niektorych wierszach i oba
 plotna stykalyby sie na tych wierszach.
@@ -512,8 +514,8 @@ zagla - ucina tylko jego gore i wierzch masztu, a stopa zagla jest schowana za k
 
 | Parametr | Wartosc | Co robi |
 |---|---|---|
-| `STRAND_THICKNESS` | 0.04 cell | grubosc liny |
-| `STRAND_EDGE` | 0.012 cell | ciemna obwodka wokol liny, zeby byla czytelna nad jasnym morzem |
+| `STRAND_THICKNESS` | 0.04 cell | grubosc liny (0.67 px na 400x800), podnoszona do `MIN_LINE_PX`, zeby lina nie rozsypala sie na kreski |
+| `STRAND_EDGE` | 0.012 cell | ciemna obwodka wokol liny, zeby byla czytelna nad jasnym morzem; **bez** podlogi `MIN_LINE_PX`, bo to ramka wokol pelnego paska, a nie wlasna linia: z podloga lina mialaby `1 + 2*1 = 3 px` z 16.85 px oczka |
 | `STRAND_LASH_CELLS` | 0.5 cell | o pol oczka pozioma lina wychodzi poza skrajna linie siatki - tyle wlasnie, ile wynosi `HATCH_REAR_CELLS`, wiec koniec liny siada na tylnej krawedzi luku |
 | `TORN_STUB_CELLS` | 0.12 cell | dlugosc kikuta, ktory zostaje przy wezle po przerwaniu liny |
 | `TORN_FRAY_CELLS` | 0.16 cell | dlugosc postrzepionego konca zwisajacego z kikuta w strone przerwy |
@@ -773,7 +775,8 @@ wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 d
 | Odsunac statki od siatki | `SHIP_GAP_CELLS` **razem z `SHIP_AIR_CELLS`** - dopoki ich suma zostaje ta sama, skala sceny sie nie zmienia. Uwaga: `SHIP_GAP_CELLS` jest **wyprowadzone** z konca liny (`-(HULL_BOW_CELLS + HATCH_REAR_CELLS + STRAND_LASH_CELLS)`), wiec reczna zmiana rozjedzie konce lin z tylnymi krawedziami lukow - to wlasnie ta tozsamosc sprawdza `_viz/` |
 | Inna dlugosc koncowki liny za skrajna linia siatki | `STRAND_LASH_CELLS` - konce lin przesuna sie razem z lukami (przez `SHIP_GAP_CELLS`) |
 | Wyrazniejszy / slabszy szew miedzy zaglami | `SAIL_EDGE_CELLS`, `SAIL_EDGE_SHADE` (albo `SAIL_EDGE_COLOR` na sztywno) |
-| Grubsza lina / wyrazniejsza siatka | `STRAND_THICKNESS`, `STRAND_EDGE` |
+| Ciensze / grubsze **wszystkie** cienkie linie naraz (fale, polysk, piana, szew, obrys kadluba i lukow, liny siatki) | `MIN_LINE_PX` - jedna wspolna dolna granica grubosci w pikselach |
+| Grubsza lina / wyrazniejsza siatka | `STRAND_THICKNESS`, `STRAND_EDGE` (ponizej `MIN_LINE_PX` grubosc i tak zostanie podniesiona do 1 px) |
 | Wieksze / mniejsze rozdarcia (dluzsza przerwa, dluzsze strzepy) | `TORN_STUB_CELLS`, `TORN_FRAY_CELLS`, `TORN_FRAY_DROP` |
 | Inny kolor kadluba / zagli | `HULL_COLOR`, `SAIL_COLOR` |
 | Szerszy lub wezszy / dluzszy lub krotszy / wyzszy lub nizszy kadlub | `HULL_BEAM_UNITS`, `HULL_LENGTH_UNITS`, `HULL_HEIGHT_UNITS` - reszta (`FOCAL_CELLS`, `HULL_BOW_CELLS`, `HULL_STERN_CELLS`, `SHIP_ROOM`) **przelicza sie sama** |
@@ -861,9 +864,12 @@ zadnej stalej wprost:
   z sufitu; gdy luk jest wezszy niz `MIN_HATCH_READ_PX = 10 px` (400x800, 800x480), narzedzie
   porownuje tylko najwyzszy piksel obrysu z policzonym naroznikiem rufowym;
 * **obrys nie zjada kadluba** - `HULL_EDGE_CELLS` jest w `cell`, wiec na najwezszym ekranie
-  (400x800) wychodzi `0.51 px` i obrys potrafi zniknac (`brak px` w bloku `obrys kadluba`) albo
-  zjesc cala sciane. Narzedzie mierzy go z pikseli, wiec zamiast zgadywac, warto spojrzec na te
-  liczby: dlugosci odcinkow maja byc rowne policzonej grubosci, a nie wieksze.
+  (400x800) wychodzi `0.51 px`, czyli mniej niz piksel. Dlatego obrys jest podnoszony do
+  `MIN_LINE_PX` (1 px) i na zadnym cieciu nie moze zniknac: blok `obrys kadluba` wypisuje grubosc po
+  podlodze i linijke `obrys kompletny na cieciu: 4 z 4 miejsc OK` (rufa, naroze, dziob, oba obrysy
+  luku). `brak px` na ktoryms z tych czterech miejsc znaczy, ze podloga przestala dzialac.
+  Narzedzie mierzy obrys z pikseli, wiec zamiast zgadywac, warto spojrzec na te liczby: szerokosci
+  maja byc rowne policzonej grubosci (z dokladnoscia do 1 px rasteryzacji), a nie wieksze.
 
 ## 12. Narzedzie do wizualizacji (`_viz/`)
 
@@ -929,10 +935,13 @@ Inne tryby (pojedynczo) wybiera sie wlasciwoscia `-PvizMain=`, np. `-PvizMain=vi
   jest oznaczany jako `UWAGA`;
 * **obrys z pikseli** - drugi skan, tym razem na obrazie **bez nakladki** (linie nakladki leza
   dokladnie na krawedziach kadluba i lukow, wiec zaslaniaja obrys, ktory ma byc zmierzony). Blok
-  `obrys kadluba` podaje ciecie `y` i policzona grubosc, dlugosci ciemnych odcinkow na tym cieciu
-  (`rufa` / `naroze` / `dziob`; `brak px` znaczy, ze obrys jest cienszy niz piksel - tak jest na
-  400x800, gdzie ma `0.51 px`), szerokosc obrysu luku i obrys calej sylwetki (`obrys statku x [...]`)
-  z odchyleniem od pudelka kadluba powiekszonego o polowe grubosci. Odchylenie do ~1.5 px jest
+  `obrys kadluba` podaje ciecie `y` i policzona grubosc po podlodze `MIN_LINE_PX`, dlugosci ciemnych
+  odcinkow na tym cieciu (`rufa` / `naroze` / `dziob`, osobno obie pionowe krawedzie obrysu luku;
+  `brak px` znaczy, ze obrys jest cienszy niz piksel - z podloga 1 px nie zdarza sie to na zadnej
+  rozdzielczosci, tak jak `brak px` nie pojawia sie na 400x800, gdzie sam `HULL_EDGE_CELLS` ma
+  `0.51 px`), linijke `obrys kompletny na cieciu: 4 z 4 miejsc (podloga 1 px)  OK` oraz obrys calej
+  sylwetki (`obrys statku x [...]`) z odchyleniem od pudelka kadluba powiekszonego o polowe
+  grubosci. Odchylenie do ~1.5 px jest
   normalne, wieksze znaczy, ze obrys wyszedl poza kadlub. Ten sam skan czyta **narozniki gornej
   krawedzi luku** (`gora luku z pikseli`): osobno naroznik rufowy i dziobowy z ich policzonymi
   wartosciami oraz `opad` w pikselach - to jedyna kontrola, ktora widzi skos luku na ekranie. Dla
@@ -946,8 +955,8 @@ Inne tryby (pojedynczo) wybiera sie wlasciwoscia `-PvizMain=`, np. `-PvizMain=vi
   pikseli drewna lezy za koncem liny (`DREWNO` / `WODA`). Ostatnie dwie linie bloku pilnuja reguly:
   koniec liny ma trafic na tylna krawedz luku (tolerancja to obrys luku `HATCH_EDGE` plus 1 px
   rasteru, na 1920x1080 `0.07 cell`), a luk ma **zostac wolny** - otwor luku zaczyna sie dopiero
-  za koncem liny. Pomiar obejmuje obwodke liny, bo na waskich ekranach (400x800, lina ma `0.68 px`)
-  sama lina bywa ciensza niz piksel;
+  za koncem liny. Pomiar obejmuje obwodke liny, bo na waskich ekranach (400x800) samo
+  `STRAND_THICKNESS` ma `0.67 px` i dopiero podloga `MIN_LINE_PX` podnosi lina do pelnego piksela;
 * **szew miedzy zaglami** - czwarty skan, na obrazie bez nakladki: blok `zagle: obrys, ktory
   rozdziela oba plotna` podaje, o ile pikseli i oczek oba zagla **na siebie nachodza** (zagiel
   wroga rysowany jest drugi, wiec jego tylny lik lezy na zaglu gracza), a potem idzie wiersz po
@@ -955,8 +964,14 @@ Inne tryby (pojedynczo) wybiera sie wlasciwoscia `-PvizMain=`, np. `-PvizMain=vi
   **choc jeden piksel obrysu** - inaczej dwa plotna w jednym kolorze zlalyby sie w jeden zagiel.
   Wynik `N z N wierszy ... OK` znaczy, ze szew jest ciagly w calej widocznej wysokosci zagla
   (22-153 wierszy, zaleznie od rozdzielczosci); blok podaje tez oba kolory (`rgb`) i grubosc obrysu
-  w pikselach. To jedyna kontrola, ktora widzi podloge `max(cell * SAIL_EDGE_CELLS, 1f)` - bez niej
-  na 400x800 (`0.51 px`) obrys przerywalby sie na czesci wierszy;
+  w pikselach. To jedyna kontrola, ktora widzi podloge `max(cell * SAIL_EDGE_CELLS, MIN_LINE_PX)` -
+  bez niej na 400x800 (`0.51 px`) obrys przerywalby sie na czesci wierszy;
+* **grubosc liny** - piaty skan, na obrazie bez nakladki: blok `siec: grubosc liny` mierzy pionowy
+  przekroj poziomej liny w srodku wolnego oczka srodkowego rzedu (z dala od wezlow i postrzepionych
+  koncow) i porownuje go z policzona gruboscia liny razem z obwodka po obu stronach
+  (`strandPx + 2 * cell * STRAND_EDGE`). Roznica do 1 px rasteryzacji jest normalna; bez podlogi
+  `MIN_LINE_PX` na 400x800 lina mialaby `0.67 px` i pomiar pokazalby 0 albo 1 px zamiast ciaglej
+  kreski;
 * **sterowanie** - `compassX`, `compassY`, `compassRadius`, promien tarczy "GO!" (`COMPASS_GO_RADIUS`),
   promien okregu liter (`COMPASS_LETTER_RING`), rozmiar napisu (`COMPASS_LABEL_SIZE`), dlugosc i
   szerokosc igly (`igla dl./szer.`), zasieg grota strzalki (`grot strzalki R`), polowa szerokosci

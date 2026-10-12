@@ -73,6 +73,14 @@ public class BattleScreen extends ScreenAdapter {
     private static final float MARGIN_FRACTION = 0.02f;
     /** Half a pixel: the centre of a one-pixel row, used when sampling the sky and the sea ramps. */
     private static final float PIXEL_CENTRE = 0.5f;
+    /**
+     * Every thin line of the scene - a wave, a streak of foam, the dark edge of a hull, the seam
+     * between the sails, a strand of the net - is at least this many pixels thick. ShapeRenderer runs
+     * without MSAA, so a line thinner than a pixel covers no pixel centre and drops out in places; at
+     * 400x800 (cell 16.85 px) a net strand of 0.04 cell is 0.67 px and the hull's edge of 0.03 cell is
+     * 0.51 px, both under it. On a large screen the cell is big enough that the floor does nothing.
+     */
+    private static final float MIN_LINE_PX = 1f;
     /** Longest variant of the turn line, so the top text band never has to grow. */
     private static final String WORST_TURN_LINE = "Tura " + BattleState.MAX_TURNS + "/" + BattleState.MAX_TURNS
             + " - PORAZKA - dotknij, aby kontynuowac";
@@ -267,7 +275,9 @@ public class BattleScreen extends ScreenAdapter {
     private static final Color HULL_STERN_COLOR = shade(HULL_COLOR, STERN_SHADE);
     /**
      * Every edge of the hull carries a dark line, as on the sketch: how thick it is in cells and how
-     * dark a shade of the timber it is drawn in.
+     * dark a shade of the timber it is drawn in. On the smallest screen 0.03 cell is half a pixel, so
+     * the line is held up to MIN_LINE_PX - the hatch outline runs through the same hullEdge and gets
+     * the floor with it.
      */
     private static final float HULL_EDGE_CELLS = 0.03f;
     private static final float HULL_EDGE_SHADE = 0.45f;
@@ -396,9 +406,12 @@ public class BattleScreen extends ScreenAdapter {
     // --- 8. Net (rope and torn cells) ------------------------------------------------------------
 
     /**
-     * Thickness of a strand, and of the dark outline that keeps it readable over the sea. How far the
-     * strands run past the net is STRAND_LASH_CELLS, up with the place of the ships: the lashing is what
-     * the ship is measured from, so the two cannot be read apart.
+     * Thickness of a strand, and of the dark outline that keeps it readable over the sea. The strand
+     * itself is never thinner than MIN_LINE_PX, so it cannot drop out on a small screen; the outline is
+     * a border round a solid bar rather than a line of its own, and flooring it too would swell the
+     * mesh to three pixels of a cell on the smallest screen. How far the strands run past the net is
+     * STRAND_LASH_CELLS, up with the place of the ships: the lashing is what the ship is measured from,
+     * so the two cannot be read apart.
      */
     private static final float STRAND_THICKNESS = 0.04f;
     private static final float STRAND_EDGE = 0.012f;
@@ -1085,7 +1098,7 @@ public class BattleScreen extends ScreenAdapter {
         for (int i = 0; i < WAVE_ROWS; i++) {
             float t = (float) Math.pow((i + 0.5f) / WAVE_ROWS, WAVE_FALLOFF);
             float y = horizonY - seaHeight * t;
-            float thickness = Math.max(1f, cell * (WAVE_THICKNESS + WAVE_THICKNESS_GROWTH * t));
+            float thickness = Math.max(MIN_LINE_PX, cell * (WAVE_THICKNESS + WAVE_THICKNESS_GROWTH * t));
             float span = cell * (WAVE_SPAN + WAVE_SPAN_GROWTH * t);
             float gap = span * (WAVE_GAP + WAVE_GAP_GROWTH * (1f - t));
             Color color = i % 2 == 0 ? CREST_COLOR : TROUGH_COLOR;
@@ -1113,7 +1126,8 @@ public class BattleScreen extends ScreenAdapter {
             float w = cell * (GLITTER_WIDTH + GLITTER_WIDTH_GROWTH * t) * (0.45f + seaRandom.nextFloat());
             float cx = sunX + (seaRandom.nextFloat() * 2f - 1f) * cell * (GLITTER_SPREAD + GLITTER_SPREAD_GROWTH * t);
             shapes.setColor(SUN_COLOR.r, SUN_COLOR.g, SUN_COLOR.b, alpha / 255f);
-            shapes.rect(cx - w / 2f, y, w, Math.max(1f, cell * GLITTER_THICKNESS * (1f + GLITTER_THICKNESS_GROWTH * t)));
+            shapes.rect(cx - w / 2f, y, w, Math.max(MIN_LINE_PX,
+                    cell * GLITTER_THICKNESS * (1f + GLITTER_THICKNESS_GROWTH * t)));
         }
     }
 
@@ -1125,7 +1139,7 @@ public class BattleScreen extends ScreenAdapter {
             float x = seaRandom.nextFloat() * width;
             shapes.setColor(FOAM_COLOR.r, FOAM_COLOR.g, FOAM_COLOR.b,
                     (FOAM_ALPHA + FOAM_ALPHA_SPREAD * seaRandom.nextFloat()) / 255f);
-            shapes.rect(x, y, w, Math.max(1f, cell * FOAM_THICKNESS));
+            shapes.rect(x, y, w, Math.max(MIN_LINE_PX, cell * FOAM_THICKNESS));
         }
     }
 
@@ -1354,7 +1368,7 @@ public class BattleScreen extends ScreenAdapter {
      * notch a flat end would.
      */
     private void hullEdge(float x1, float y1, float x2, float y2) {
-        bar(x1, y1, x2, y2, cell * HULL_EDGE_CELLS);
+        bar(x1, y1, x2, y2, Math.max(cell * HULL_EDGE_CELLS, MIN_LINE_PX));
     }
 
     /** One bar of a dark line of the given thickness, stretched half that past each end. */
@@ -1447,7 +1461,7 @@ public class BattleScreen extends ScreenAdapter {
         // ShapeRenderer draws with no antialiasing, so a bar narrower than one pixel falls between two
         // pixel centres on some rows and leaves a gap there. This line has to be continuous: it is the
         // only thing separating two sails of one colour. Hence the floor of one pixel.
-        float thickness = Math.max(cell * SAIL_EDGE_CELLS, 1f);
+        float thickness = Math.max(cell * SAIL_EDGE_CELLS, MIN_LINE_PX);
 
         shapes.setColor(SAIL_EDGE_COLOR);
         bar(mastX - halfWidth, top, mastX + halfWidth, top, thickness);
@@ -1479,7 +1493,7 @@ public class BattleScreen extends ScreenAdapter {
      * the whole way from the board to the wood.
      */
     private void drawNet() {
-        float thickness = cell * STRAND_THICKNESS;
+        float thickness = Math.max(cell * STRAND_THICKNESS, MIN_LINE_PX);
         float reach = cell * STRAND_LASH_CELLS;
         float left = cellLeft(1);
         float right = cellLeft(BattleState.WIDTH - 1);
