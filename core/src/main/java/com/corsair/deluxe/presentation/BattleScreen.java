@@ -316,10 +316,8 @@ public class BattleScreen extends ScreenAdapter {
      * Thickness of a strand, and of the dark outline that keeps it readable over the sea. The strand
      * itself is never thinner than MIN_LINE_PX, so it cannot drop out on a small screen; the outline is
      * a border round a solid bar rather than a line of its own, and flooring it too would swell the
-     * mesh to three pixels of a cell on the smallest screen. How far the strands run past the net is
-     * STRAND_LASH_CELLS, up with the place of the ships: the lashing is what the ship is measured from,
-     * so the two cannot be read apart. It is declared here, above the hatches, because the empty strip
-     * above and below a hatch is one rope thick as well.
+     * mesh to three pixels of a cell on the smallest screen. It is declared here, above the hatches,
+     * because the empty strip above and below a hatch is one rope thick as well.
      */
     private static final float STRAND_THICKNESS = 0.04f;
 
@@ -362,21 +360,36 @@ public class BattleScreen extends ScreenAdapter {
     /** How far the rear jamb of the hatch column stands behind the middle of the ship, in board cells. */
     private static final float HATCH_REAR_CELLS = -hullX(HATCH_COLUMN_UNITS, HULL_BEAM_UNITS);
     /**
-     * The lashing: how far a horizontal strand of the net runs past the outermost line of the net, in
-     * cells. It is the rope left over past the last knot, and it is what the ship is placed from - the
-     * net has to read as made fast at the hatches the units come out of, so the wood ends on the rope
-     * rather than the rope being fitted to wherever the wood happens to be.
+     * How much of a hatch the eye can see: the bow jamb stands that much further in towards the net
+     * than the rear one. It is the width of the doorway on screen, and it is what the lashing of the net
+     * is shortened by, so that the ropes stop at the far edge of the doorway instead of crossing it.
      */
-    private static final float STRAND_LASH_CELLS = 0.5f;
+    private static final float HATCH_SPAN_CELLS = hullX(HATCH_COLUMN_UNITS + HATCH_WIDTH_UNITS, HULL_BEAM_UNITS)
+            - hullX(HATCH_COLUMN_UNITS, HULL_BEAM_UNITS);
+    /**
+     * Where the lashing is made fast: how far the rear jamb of the hatch column stands past the
+     * outermost line of the net, in cells. The ship is placed from this - the net has to read as tied
+     * at the hatches the units come out of, so the wood ends on the rope rather than the rope being
+     * fitted to wherever the wood happens to be.
+     */
+    private static final float SHIP_STANDOFF_CELLS = 0.5f;
+    /**
+     * The lashing: how far a horizontal strand of the net runs past the outermost line of the net, in
+     * cells. It is the rope left over past the last knot, and it stops on the bow jamb of the hatch, so
+     * the rope ends level with the far edge of the doorway and leaves the whole opening free. The rope
+     * still crosses the outermost line of the net, so it reads as made fast to the ship.
+     */
+    private static final float STRAND_LASH_CELLS = SHIP_STANDOFF_CELLS - HATCH_SPAN_CELLS;
     /**
      * The whole ship, deck squares included, stands this far off the net - with the rear jamb of its
-     * hatch column exactly on the ends of the strands, so the lashings land on the wood beside the
-     * doorways. The gap is therefore negative: the hulls are pulled in until they lie over the
-     * outermost columns of the board, and the net is drawn over the hulls. The bow's reach towards the
-     * net, the place of the hatch on the wall and the lashing are together the whole distance from the
-     * middle of the ship to the outermost line of the net, and this is what is left of it here.
+     * hatch column SHIP_STANDOFF_CELLS past the outermost line of the net, so the lashings land on the
+     * wood beside the doorways. The gap is therefore negative: the hulls are pulled in until they lie
+     * over the outermost columns of the board, and the net is drawn over the hulls. The bow's reach
+     * towards the net, the place of the hatch on the wall and that stand-off are together the whole
+     * distance from the middle of the ship to the outermost line of the net, and this is what is left of
+     * it here.
      */
-    private static final float SHIP_GAP_CELLS = -(HULL_BOW_CELLS + HATCH_REAR_CELLS + STRAND_LASH_CELLS);
+    private static final float SHIP_GAP_CELLS = -(HULL_BOW_CELLS + HATCH_REAR_CELLS + SHIP_STANDOFF_CELLS);
     /**
      * Room beside the net for a whole hull, the strands that reach it and the water beyond its stern:
      * the gap the ship stands off - negative now that it is pulled in over the board - its bow's reach
@@ -1501,9 +1514,9 @@ public class BattleScreen extends ScreenAdapter {
      * The boarding net strung between the two hulls: one rope along every grid line, so a mesh opening
      * is exactly one cell wide and a unit stands in the middle of an opening, never on a knot where two
      * strands cross. The openings show the sea and the sky behind them. The horizontal ropes run past
-     * the outermost grid lines, over the water and over the wood, and end on the hulls beside their
-     * hatches, where they are made fast: the net is drawn over the ships, so the lashings stay in sight
-     * the whole way from the board to the wood.
+     * the outermost grid lines, over the water and over the wood, and end on the bow jamb of the hatch
+     * of their own row, where they are made fast: the net is drawn over the ships, so the lashings stay
+     * in sight the whole way from the board to the wood, and the doorway stays clear.
      */
     private void drawNet() {
         float thickness = Math.max(cell * STRAND_THICKNESS, MIN_LINE_PX);
