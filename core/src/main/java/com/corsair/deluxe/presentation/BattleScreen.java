@@ -313,22 +313,43 @@ public class BattleScreen extends ScreenAdapter {
     private static final Color SAIL_EDGE_COLOR = shade(SAIL_COLOR, SAIL_EDGE_SHADE);
 
     /**
-     * The hatch column on the wall facing the board: one hatch per row of the board, each a unit
-     * square, set half a unit in from the stern and from the deck and spaced a quarter of a unit
-     * apart. The column is six units long, and the focal length below makes exactly that much of the
-     * wall as tall as the rows it mirrors.
+     * Thickness of a strand, and of the dark outline that keeps it readable over the sea. The strand
+     * itself is never thinner than MIN_LINE_PX, so it cannot drop out on a small screen; the outline is
+     * a border round a solid bar rather than a line of its own, and flooring it too would swell the
+     * mesh to three pixels of a cell on the smallest screen. How far the strands run past the net is
+     * STRAND_LASH_CELLS, up with the place of the ships: the lashing is what the ship is measured from,
+     * so the two cannot be read apart. It is declared here, above the hatches, because the empty strip
+     * above and below a hatch is one rope thick as well.
+     */
+    private static final float STRAND_THICKNESS = 0.04f;
+
+    /**
+     * The hatch column on the wall facing the board: one hatch per row of the board, laid out on the
+     * ropes of the net. Going up the column the pattern is a rope, an empty strip as thick as the
+     * rope, the hatch, another such strip, the next rope - so a hatch is centred in its row, and one
+     * step of the column is exactly one row of the board. The focal length below turns that step into
+     * one cell of the net, which is what keeps the hatches in step with the ropes between them.
      */
     private static final float HATCH_COLUMN_UNITS = 0.5f;
-    private static final float HATCH_SIZE_UNITS = 1f;
-    private static final float HATCH_GAP_UNITS = 0.25f;
-    private static final float HATCH_MARGIN_UNITS = 0.5f;
+    /** How far a hatch runs along the hull: the unit square of the wall, as the sketch gives it. */
+    private static final float HATCH_WIDTH_UNITS = 1f;
+    /** One row of the board in units of the wall: six units of hull stand for the rows of the board. */
+    private static final float HATCH_STEP_UNITS = 6f / BattleState.HEIGHT;
+    /** The empty strip above and below a hatch: exactly the thickness of a horizontal rope. */
+    private static final float HATCH_GAP_UNITS = HATCH_STEP_UNITS * STRAND_THICKNESS;
+    /** The opening itself: the row, less the two strips of rope thickness flanking it. */
+    private static final float HATCH_OPEN_UNITS = HATCH_STEP_UNITS - 2f * HATCH_GAP_UNITS;
     private static final int HATCH_COUNT = BattleState.HATCH_ROWS.length;
-    private static final float HATCH_COLUMN_HEIGHT_UNITS = HATCH_SIZE_UNITS
-            + (HATCH_COUNT - 1) * (HATCH_SIZE_UNITS + HATCH_GAP_UNITS);
+    /**
+     * Where the lowest hatch starts. The column is centred on the horizon, so the strip below the
+     * lowest hatch and the one above the highest are the same thickness as the ropes between them.
+     */
+    private static final float HATCH_MARGIN_UNITS = (HULL_HEIGHT_UNITS
+            - ((HATCH_COUNT - 1) * HATCH_STEP_UNITS + HATCH_OPEN_UNITS)) / 2f;
     /** The middle of the column, and how far the view reaches at it: what the focal length is set from. */
-    private static final float HATCH_COLUMN_S = HATCH_COLUMN_UNITS + HATCH_SIZE_UNITS / 2f;
+    private static final float HATCH_COLUMN_S = HATCH_COLUMN_UNITS + HATCH_WIDTH_UNITS / 2f;
     private static final float HATCH_COLUMN_DEPTH = hullDepth(HATCH_COLUMN_S, HULL_BEAM_UNITS);
-    private static final float FOCAL_CELLS = BattleState.HEIGHT * HATCH_COLUMN_DEPTH / HATCH_COLUMN_HEIGHT_UNITS;
+    private static final float FOCAL_CELLS = HATCH_COLUMN_DEPTH / HATCH_STEP_UNITS;
 
     /**
      * How far the bow of a hull reaches in towards the net from the middle of the ship, and how far its
@@ -405,15 +426,7 @@ public class BattleScreen extends ScreenAdapter {
 
     // --- 8. Net (rope and torn cells) ------------------------------------------------------------
 
-    /**
-     * Thickness of a strand, and of the dark outline that keeps it readable over the sea. The strand
-     * itself is never thinner than MIN_LINE_PX, so it cannot drop out on a small screen; the outline is
-     * a border round a solid bar rather than a line of its own, and flooring it too would swell the
-     * mesh to three pixels of a cell on the smallest screen. How far the strands run past the net is
-     * STRAND_LASH_CELLS, up with the place of the ships: the lashing is what the ship is measured from,
-     * so the two cannot be read apart.
-     */
-    private static final float STRAND_THICKNESS = 0.04f;
+    /** How thick the dark outline round a strand is, in cells. */
     private static final float STRAND_EDGE = 0.012f;
     /**
      * A torn cell: the rope over it is broken, and what is left of it are two stubs, one hanging off
@@ -1215,14 +1228,14 @@ public class BattleScreen extends ScreenAdapter {
     }
 
     /**
-     * The hatch of one row of the column: the unit square of the wall seen in the projection, with its
+     * The hatch of one row of the column: the opening of the wall seen in the projection, with its
      * dark edge. The wall runs away from the eye, so the square is a parallelogram - its sides stay
      * upright (the projection moves a point sideways with its place along the ship only, never with its
      * height), while its top and bottom slant with the wall, exactly as the deck above them does.
      */
     private void hatchQuad(boolean player, int index) {
         float low = hatchLow(index);
-        float high = low + HATCH_SIZE_UNITS;
+        float high = low + HATCH_OPEN_UNITS;
         float rearX = hatchRearX(player);
         float bowX = hatchBowX(player);
         float rearBottom = hatchCornerY(false, low);
@@ -1243,13 +1256,13 @@ public class BattleScreen extends ScreenAdapter {
      * are at different depths, so the same height of wall lands lower at the bow end than at the stern.
      */
     private float hatchCornerY(boolean bow, float units) {
-        float s = bow ? HATCH_COLUMN_UNITS + HATCH_SIZE_UNITS : HATCH_COLUMN_UNITS;
+        float s = bow ? HATCH_COLUMN_UNITS + HATCH_WIDTH_UNITS : HATCH_COLUMN_UNITS;
         return hullScreenY(s, HULL_BEAM_UNITS, units);
     }
 
     /** How far up the wall the hatch of one row starts, in ship units. */
     private static float hatchLow(int index) {
-        return HATCH_MARGIN_UNITS + (HATCH_COUNT - 1 - index) * (HATCH_SIZE_UNITS + HATCH_GAP_UNITS);
+        return HATCH_MARGIN_UNITS + (HATCH_COUNT - 1 - index) * HATCH_STEP_UNITS;
     }
 
     /** The screen x of the two ends of the hatch column: the stern end and the bow end of the wall. */
@@ -1258,7 +1271,7 @@ public class BattleScreen extends ScreenAdapter {
     }
 
     private float hatchBowX(boolean player) {
-        return hullScreenX(player, HATCH_COLUMN_UNITS + HATCH_SIZE_UNITS, HULL_BEAM_UNITS);
+        return hullScreenX(player, HATCH_COLUMN_UNITS + HATCH_WIDTH_UNITS, HULL_BEAM_UNITS);
     }
 
     /** How far the hatch column reaches to the left and to the right on the wall, in screen x. */
@@ -1281,7 +1294,7 @@ public class BattleScreen extends ScreenAdapter {
     }
 
     private float hatchTop(int index) {
-        float high = hatchLow(index) + HATCH_SIZE_UNITS;
+        float high = hatchLow(index) + HATCH_OPEN_UNITS;
         return Math.max(hatchCornerY(false, high), hatchCornerY(true, high));
     }
 

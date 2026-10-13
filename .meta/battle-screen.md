@@ -314,7 +314,7 @@ Poza sekcja 1, ale tez strojenie w czasie: `ENEMY_THINK_SECONDS` (0.8) - ile "my
 | `HULL_LENGTH_UNITS` | 20 | dlugosc kadluba rufa-dziob; jedna jednostka = jedno oczko siatki (`ship dimensions.png`, rysunek B) |
 | `HULL_BEAM_UNITS` | 3 | szerokosc kadluba (`ship dimensions.png`, rysunek C) |
 | `HULL_HEIGHT_UNITS` | 7 | wysokosc kadluba od linii wodnej do pokladu (`ship dimensions.png`, rysunek B) |
-| `FOCAL_CELLS` | 8.682 | ogniskowa rzutu w oczkach; wyliczona tak, zeby kolumna lukow byla dokladnie tak wysoka jak rzedy, ktore otwiera |
+| `FOCAL_CELLS` | 8.682 | ogniskowa rzutu w oczkach; wyliczona tak, zeby **jeden krok kolumny lukow byl dokladnie tak wysoki jak jeden wiersz planszy**, ktory ten luk otwiera |
 | `HULL_BOW_CELLS` | 1.218 | o tyle dziob wystaje do przodu od srodka kadluba |
 | `HULL_STERN_CELLS` | 3.427 | o tyle rufa wystaje do tylu od srodka kadluba |
 | `HATCH_REAR_CELLS` | 0.882 | o tyle tylna krawedz luku lezy za skrajna linia siatki; to odleglosc od dziobu, wiec **ujemne** `hullX` (rosnie ku rufie) |
@@ -373,12 +373,15 @@ across(s,x) =                        (s - L/2) * sn + (x - B/2) * cs   // w praw
 hullX(s,x)   = FOCAL_CELLS * across / depth        // oczka w prawo od srodka komorki kadluba
 hullY(s,x,y) = FOCAL_CELLS * (y - H/2) / depth     // oczka nad horyzontem
 
-FOCAL_CELLS = HEIGHT * depth(HATCH_COLUMN_S, B) / HATCH_COLUMN_HEIGHT_UNITS = 8.682
+FOCAL_CELLS = depth(HATCH_COLUMN_S, B) / HATCH_STEP_UNITS = 8.682
 ```
 
-Ostatnia linia jest kluczowa: ogniskowa jest **wyprowadzona z kolumny lukow**, a nie wybrana -
-dzieki temu `HATCH_COLUMN_HEIGHT_UNITS = 6` jednostek burty zajmuje na ekranie dokladnie
-`HEIGHT = 5` oczek, czyli tyle, ile ma plansza, ktorej te luki otwieraja. Rzut jest wiec
+Ostatnia linia jest kluczowa: ogniskowa jest **wyprowadzona z kroku kolumny lukow**, a nie wybrana -
+dzieki temu `HATCH_STEP_UNITS = 6 / HEIGHT = 1.2` jednostki burty (jeden wiersz planszy, tyle samo
+co odstep dwoch linii siatki) zajmuje na ekranie dokladnie **jedno oczko**, czyli jeden wiersz
+planszy, ktory ten luk otwiera. Ogniskowa wypada dokladnie ta sama, co dawniej przy szesciu
+jednostkach na piec oczek (`depth(1.0, B) / 1.2` = `5 * depth(1.0, B) / 6`), wiec skala calej sceny
+sie nie zmienila. Rzut jest wiec
 zadany z gory: kadlub 20 x 3 x 7 jednostek, yaw `VIEW_YAW_DEG` od osi statku, oko na wysokosci
 srodka kadluba (`y = H/2`, dlatego **horyzont przechodzi przez srodek kadluba** i nie widac pokladu
 z gory) i `VIEW_DISTANCE_UNITS` jednostek od srodka statku. Perspektywa skraca dlugosc - 20 jednostek
@@ -575,10 +578,12 @@ wszystkich 8 rozdzielczosciach).
 | `CREW_RADIUS` | 0.32 cell | promien pirata na siatce |
 | `CREW_SEGMENTS` | 24 | ile segmentow ma kolo pirata |
 | `HATCH_COLUMN_UNITS` | 0.5 | odleglosc tylnej krawedzi kolumny lukow od rufy (`ship dimensions.png`, rysunek B) |
-| `HATCH_SIZE_UNITS` | 1 | bok luku - jednostka, czyli dokladnie jedno oczko siatki |
-| `HATCH_GAP_UNITS` | 0.25 | odstep miedzy lukami |
-| `HATCH_MARGIN_UNITS` | 0.5 | zapas od pokladu i od stepki |
-| `HATCH_COLUMN_HEIGHT_UNITS` | `1 + 4 * 1.25` = 6 | dlugosc calej kolumny lukow; **wyliczana** z `HATCH_SIZE_UNITS`, `HATCH_GAP_UNITS` i liczby wierszy, z niej liczy sie `FOCAL_CELLS` (punkt 7) |
+| `HATCH_WIDTH_UNITS` | 1 | dlugosc luku wzdluz burty - jednostka, czyli bok kwadratu ze szkicu |
+| `HATCH_STEP_UNITS` | `6 / HEIGHT` = 1.2 | **wyliczana**: jeden wiersz planszy w jednostkach burty; z niej liczy sie `FOCAL_CELLS` (punkt 7), wiec krok kolumny to dokladnie jedno oczko |
+| `HATCH_GAP_UNITS` | `HATCH_STEP_UNITS * STRAND_THICKNESS` = 0.048 | **wyliczana**: pusta przestrzen nad i pod lukiem - dokladnie grubosc poziomej liny |
+| `HATCH_OPEN_UNITS` | `HATCH_STEP_UNITS - 2 * HATCH_GAP_UNITS` = 1.104 | **wyliczana**: wysokosc otworu luku na burcie |
+| `HATCH_MARGIN_UNITS` | 0.548 | **wyliczana**: zapas od pokladu do najwyzszego luku i od najnizszego luku do stepki; kolumna jest wyosiowana na horyzoncie, wiec oba zapasy sa rowne |
+| `HATCH_COUNT` | `BattleState.HATCH_ROWS.length` = 5 | ile lukow ma kolumna |
 | `HATCH_EDGE_SHADE` / `HATCH_EDGE_COLOR` | 0.35 / 37, 23, 12 | obrys luku - ciemniejszy od obrysu kadluba, zeby luki odstawaly od burty; grubosc bierze z `HULL_EDGE_CELLS` |
 | `HATCH_DISABLED_COLOR` | 0.35, 0.35, 0.35 | zniszczony luk |
 | `HATCH_OPEN_COLOR` | 0.98, 0.79, 0.28 | zloty kolor otwartego luku |
@@ -596,14 +601,14 @@ wszystkich 8 rozdzielczosciach).
 Geometria lukow (`drawHatchColumn` / `hatchQuad`):
 
 ```
-low    = HATCH_MARGIN_UNITS + (HATCH_COUNT - 1 - i) * (HATCH_SIZE_UNITS + HATCH_GAP_UNITS)
-high   = low + HATCH_SIZE_UNITS
+low    = HATCH_MARGIN_UNITS + (HATCH_COUNT - 1 - i) * HATCH_STEP_UNITS
+high   = low + HATCH_OPEN_UNITS
 
 rearX = hullScreenX(player, HATCH_COLUMN_UNITS, B)                    // krawedz rufowa luku
-bowX  = hullScreenX(player, HATCH_COLUMN_UNITS + HATCH_SIZE_UNITS, B) // krawedz dziobowa luku
+bowX  = hullScreenX(player, HATCH_COLUMN_UNITS + HATCH_WIDTH_UNITS, B) // krawedz dziobowa luku
 rearBottom = hullScreenY(HATCH_COLUMN_UNITS, B, low)   rearTop = hullScreenY(HATCH_COLUMN_UNITS, B, high)
-bowBottom  = hullScreenY(HATCH_COLUMN_UNITS + HATCH_SIZE_UNITS, B, low)
-bowTop     = hullScreenY(HATCH_COLUMN_UNITS + HATCH_SIZE_UNITS, B, high)
+bowBottom  = hullScreenY(HATCH_COLUMN_UNITS + HATCH_WIDTH_UNITS, B, low)
+bowTop     = hullScreenY(HATCH_COLUMN_UNITS + HATCH_WIDTH_UNITS, B, high)
 
 left   = min(rearX, bowX)              right  = max(rearX, bowX)
 bottom = min(rearBottom, bowBottom)    top    = max(rearTop, bowTop)
@@ -615,6 +620,33 @@ ucieka od oka - **rownoleglobokiem**: `hatchQuad` liczy cztery narozniki `rearX`
 `low`/`high`, rozbija go na dwa trojkaty, a potem obwodzi wszystkie cztery boki ciemna kreska
 (`HATCH_EDGE_COLOR`). Zadna z tych czterech krawedzi nie jest pozioma ani pionowa w oczkach planszy:
 luk nie jest prostokatem w ukladzie ekranu, tylko kwadratem na burcie.
+
+**Luki ida za rytmem lin.** Kolumna lukow nie jest juz rozstawiona wlasnym krokiem `1 + 0.25`
+jednostki, tylko **linami siatki**: idac od dolu mamy lina, pusta przysczen o wysokosci liny, luk,
+znowu taka przysczen, lina, i tak dalej, a nad najwyzszym lukiem znowu przysczen i ostatnia lina.
+Dlatego krok kolumny to dokladnie **jeden wiersz planszy** (`HATCH_STEP_UNITS = 6 / HEIGHT`), a nie
+szesc jednostek na piec wierszy, i dlatego `FOCAL_CELLS` liczy sie z tego kroku - jedyne miejsce,
+w ktorym rytm lin spotyka sie z rytmem lukow, to ta jedna zaleznosc. Puste przysczenie nad i pod
+lukiem to z tego samego powodu dokladnie `STRAND_THICKNESS`, czyli tyle, ile ma pozioma lina
+(`HATCH_GAP_UNITS`), a otwor luku to reszta kroku (`HATCH_OPEN_UNITS`). Linie siatki **nie byly przy
+tym zmieniane** - zmienily sie tylko rozmiar i polozenie lukow.
+
+Perspektywa sprawia, ze ten rytm jest **dokladny w jednostkach burty**, a nie w pikselach: luk jest
+prostokatem na burcie, a wiersz planszy pasem o stalej wysokosci na ekranie, wiec wysokosc luku
+widziana na ekranie zalezy od tego, jak daleko od oka jest jego krawedz (na 1920x1080 otwor ma
+`77.60 px = 0.965` oczka przy rufie i `70.73 px = 0.879` oczka przy dziobie). Kolumna jest wiec
+wyosiowana **na horyzoncie** (`HATCH_MARGIN_UNITS`), czyli w polowie glebosci kolumny
+(`HATCH_COLUMN_S`): srodkowy luk wypada dokladnie w srodku swojego wiersza przy obu krawedziach
+(przysczenie `0.0175` oczka przy rufie i `0.06` przy dziobie), a blad rosnie liniowo z odlegloscia
+luku od horyzontu - po `0.097` oczka na skrajnych lukach przy rufie i `0.089` przy dziobie, w obie
+strony od srodka. To najlepsze mozliwe wyosiowanie, bo przy kazdym innym jeden koniec kolumny
+zyskiwalby kosztem drugiego. Cena tego jest taka, ze na 1920x1080 dolna krawedz linii wchodzi
+o `8 px` w gorny naroznik rufowy najwyzszego luku (i, symetrycznie, w dolny naroznik rufowy
+najnizszego), a o `4 px` w dolny naroznik dziobowy najwyzszego (i w gorny naroznik dziobowy
+najnizszego). Zeby te naciecia zniknely, otwor musialby byc o okolo `0.14` oczka nizszy, czyli pusta
+przysczenie musialaby byc trzy i pol razy grubsza od liny - to sprzeczne z rytmem, ktory mial byc
+uzyskany. Na 400x800 obie krawedzie sa podniesione do `MIN_LINE_PX`, wiec tam rytm jest tylko
+z grubsza.
 
 Trzy wlasnosci tego rzutu, ktore trzeba zachowac przy zmianach:
 
@@ -782,10 +814,10 @@ wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 d
 | Szerszy lub wezszy / dluzszy lub krotszy / wyzszy lub nizszy kadlub | `HULL_BEAM_UNITS`, `HULL_LENGTH_UNITS`, `HULL_HEIGHT_UNITS` - reszta (`FOCAL_CELLS`, `HULL_BOW_CELLS`, `HULL_STERN_CELLS`, `SHIP_ROOM`) **przelicza sie sama** |
 | Inny kat widoku (mniej / bardziej z boku) | `VIEW_YAW_DEG` (0 = patrzymy wzdluz statku, 90 = z burty) |
 | Inne skrocenie perspektywy (kadlub dluzszy / krotszy na ekranie) | `VIEW_DISTANCE_UNITS` (mniej = blizej, wieksze skrocenie) |
-| Wiekszy / mniejszy statek na ekranie | `HATCH_COLUMN_HEIGHT_UNITS` (przez `FOCAL_CELLS`) albo `SHIP_GAP_CELLS` + `SHIP_AIR_CELLS` (przez `SHIP_ROOM`) - przeliczy wtedy `cell` i caly uklad |
+| Wiekszy / mniejszy statek na ekranie | `HATCH_STEP_UNITS` (przez `FOCAL_CELLS`; uwaga: rozjedzie wtedy krok lukow z liniami siatki) albo `SHIP_GAP_CELLS` + `SHIP_AIR_CELLS` (przez `SHIP_ROOM`) - przeliczy wtedy `cell` i caly uklad |
 | Wyrazniejsza / slabsza krawedz narozna | `STERN_SHADE` |
 | Inne polozenie kolumny lukow (blizej / dalej rufy) | `HATCH_COLUMN_UNITS` |
-| Wieksze / mniejsze luki | `HATCH_SIZE_UNITS`, `HATCH_GAP_UNITS`, `HATCH_MARGIN_UNITS` (uwaga: zmiana rozmiaru przelicza `FOCAL_CELLS`) |
+| Wieksze / mniejsze luki | `HATCH_WIDTH_UNITS` wzdluz burty; w poprzek (w gore) luk jest tak wysoki, jak zostawia to rytm lin - `HATCH_STEP_UNITS` minus dwa `HATCH_GAP_UNITS` - wiec zmiana wysokosci luku bylaby zmiana przysczenia, czyli grubosci lin |
 | Wysokosc widocznego dolnego pasa zagla | `SAIL_BOTTOM` (dolna granica: stopa musi zostac nad plansza), `SAIL_TOP`, `RIGGING_OVERFLOW` |
 | Szeroki / waski zagiel | `SAIL_HALF_WIDTH` (0.4 = 0.8 szerokosci planszy) |
 | Bardziej / mniej wybrzuszona stopa zagla | `SAIL_CLEW_RISE` (0 = stopa prosta, rogi na jej poziomie), `SAIL_CLEW_INSET` (0 = liki pionowe) |
@@ -857,12 +889,18 @@ zadnej stalej wprost:
 * **luki siedza na burcie** - kontrola `luk w burcie` i zakres `x` luku musza sie zgadzac, bo obszar
   dotyku lukow jest budowany z tego samego rzutu (sekcja 9);
 * **luk jest kwadratem na burcie, nie prostokatem na ekranie** - wiersz `luk skos / skos pokladu`
-  musi dawac 0.86 (tyle, ile `3.0 / 3.5` opadu pokladu), a blok `gora luku z pikseli` musi czytac
+  musi dawac 0.84 (tyle, ile `2.95 / 3.5` opadu pokladu), a blok `gora luku z pikseli` musi czytac
   **oba** narozniki gornej krawedzi: naroznik rufowy wyzej od dziobowego o policzona wartosc
   (`opad`). Ten odczyt bierze kolumne pionowej krawedzi luku (najwiecej trafien w polowie okna),
   bo skrajne kolumny lapia tylko zaokraglone konce poziomych kresek sasiednich lukow i podaja liczbe
   z sufitu; gdy luk jest wezszy niz `MIN_HATCH_READ_PX = 10 px` (400x800, 800x480), narzedzie
   porownuje tylko najwyzszy piksel obrysu z policzonym naroznikiem rufowym;
+* **krok lukow to jeden wiersz planszy** - wiersz `luk y rufa wiersz 0 / 4` mierzy krok przy
+  **krawedzi rufowej**, czyli blizej oka, wiec jest on powiekszony o
+  `depth(HATCH_COLUMN_S, B) / depth(HATCH_COLUMN_UNITS, B) = 1.0486` i ma wyjsc `4.194 cell`
+  (`337.41 px` na 1920x1080), a nie `4.000` - to nie blad. Sam krok w polowie glebosci kolumny, tam
+  gdzie stoi `FOCAL_CELLS`, to dokladnie jedno oczko, i to jest wlasciwa kontrola rytmu lukow
+  z liniami (sekcja 9);
 * **obrys nie zjada kadluba** - `HULL_EDGE_CELLS` jest w `cell`, wiec na najwezszym ekranie
   (400x800) wychodzi `0.51 px`, czyli mniej niz piksel. Dlatego obrys jest podnoszony do
   `MIN_LINE_PX` (1 px) i na zadnym cieciu nie moze zniknac: blok `obrys kadluba` wypisuje grubosc po
@@ -921,7 +959,7 @@ Inne tryby (pojedynczo) wybiera sie wlasciwoscia `-PvizMain=`, np. `-PvizMain=vi
   obie sciany sa tej samej wysokosci), szerokosc luku w px i w `cell`, zakres `x` luku, jego wiersze
   (`luk y rufa wiersz 0/4` plus krok), wysokosc luku przy rufie i przy dziobie (`luk wysokosc rufa` /
   `luk wysokosc dziob`), opad gornej i dolnej krawedzi luku (`luk skos gora` / `luk skos dol`),
-  iloraz tego opadu do opadu pokladu (`luk skos / skos pokladu`, ma wyjsc `0.86`), wysokosc pudelka
+  iloraz tego opadu do opadu pokladu (`luk skos / skos pokladu`, ma wyjsc `0.84`), wysokosc pudelka
   luku (`luk otoczka wysokosc`, czyli obszar dotkniecia), kontrola `luk w burcie`, szerokosc zagla,
   wysokosc zawieszenia
   zagla nad stopa masztu, wysokosc obciecia maska, **`zagle nad plansza`** (znakowana odleglosc
