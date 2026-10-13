@@ -330,12 +330,13 @@ Poza sekcja 1, ale tez strojenie w czasie: `ENEMY_THINK_SECONDS` (0.8) - ile "my
 | `RIGGING_MIN_SKY` | 0.4 cell | minimalna wysokosc takielunku nad stopa masztu (dolna granica) |
 | `RIGGING_OVERFLOW` | 0.5 cell | o tyle takielunek wychodzi ponad gorna krawedz sceny (`sceneTop`) |
 | `MAST_POSITION` | 0.42 | gdzie stoi maszt na kadlubie (udzial dlugosci od rufy, czyli prawie na srodku) |
+| `MAST_BEAM_UNITS` | `HULL_BEAM_UNITS / 2` = 1.5 | gdzie stoi maszt w poprzek pokladu, w jednostkach od dalekiej burty (`0` = daleka burta, `HULL_BEAM_UNITS` = burta od strony planszy), czyli **srodek szerokosci pokladu** |
 | `SAIL_HALF_WIDTH` | 0.4 | polowa szerokosci zagla jako udzial szerokosci planszy (pelna szerokosc = 0.8 planszy); to szerokosc wzdluz rei, na glowie |
 | `SAIL_CLEW_INSET` | 0.06 | o tyle stopa jest wezsza od glowy - boki (liky) zbiegaja sie ku dolowi |
 | `SAIL_CLEW_RISE` | 0.2 | o tyle oba narozniki stopy (rogi szotowe) leza wyzej od najglebszego punktu stopy |
 | `SAIL_SEGMENTS` | 16 | na ile odcinkow dzielony jest sagi luk stopy |
 | `SAIL_EDGE_CELLS` / `SAIL_EDGE_SHADE` | `HULL_EDGE_CELLS` / `HULL_EDGE_SHADE` | obrys zagla: ta sama grubosc i to samo sciemnienie co obrys kadluba, tylko od `SAIL_COLOR` (`SAIL_EDGE_COLOR` = 88, 84, 71) |
-| `SAIL_BOTTOM` / `SAIL_TOP` | 0.24 / 0.95 | jedyny zagiel, udzialy wysokosci takielunku od stopy masztu: stopa wisi nad naroznikiem planszy, glowa poza scena |
+| `SAIL_BOTTOM` / `SAIL_TOP` | 0.25 / 0.95 | jedyny zagiel, udzialy wysokosci takielunku od stopy masztu: stopa wisi nad naroznikiem planszy, glowa poza scena |
 | `MAST_THICKNESS` / `MAST_TOP` | 0.176 cell / 1 | maszt: grubosc (gruby slup) i jak wysoko siega |
 
 Zagiel, reja i choragiewka zniknely: zostaje sam dol takielunku. Wysokosc takielunku to **cale niebo
@@ -346,10 +347,12 @@ gore).
 
 Zagiel jest **0.8 szerokosci planszy** (`2 * SAIL_HALF_WIDTH`), wiec miesci sie w widoku: od zewnetrznej
 krawedzi sceny dzieli go jeszcze 1.09 cell na 1920x1080 (rosnie na wezszych ekranach, bo skala
-maleje szybciej niz margines). Oba zagla natomiast **nachodza na siebie o 2.19 cell** (0.27
-szerokosci planszy) - oba maszty sa teraz tylko 2.81 cell od siebie, bo statki zostaly dociagniete
+maleje szybciej niz margines). Oba zagla natomiast **nachodza na siebie o 0.76 cell** (0.10
+szerokosci planszy) - oba maszty sa 5.64 cell od siebie, bo statki zostaly dociagniete
 do siatki, a kazdy zagiel ma 6.40 cell szerokosci. To nachodzenie nie zalezy od rozdzielczosci, bo
-oba maszty i obie polowy zagla licza sie z tego samego `cell`.
+oba maszty i obie polowy zagla licza sie z tego samego `cell`. Dopoki maszt stal na burcie od strony
+planszy, nachodzenie wynosilo 2.19 cell - oba plotna zachodzily na siebie prawie na trzeciej czesci
+szerokosci, bo oba maszty staly tuz przy burcie sasiada (patrz wyzej `MAST_BEAM_UNITS`).
 
 Dwa plotna w jednym kolorze zlalyby sie w jeden szeroki zagiel, wiec kazdy zagiel ma wokol siebie
 cienka ciemna linie (`SAIL_EDGE_*`, `drawSailEdge`) - tak samo, jak kadlub ma obrys. Linia idzie po
@@ -444,8 +447,8 @@ Takielunek - **tylko jego dol jest widoczny**:
 sky    = max(cell * RIGGING_MIN_SKY, sceneTop - mastY)   // niebo nad stopa masztu
 rig    = sky + cell * RIGGING_OVERFLOW                   // takielunek siega ponad scene
 mastS  = MAST_POSITION * HULL_LENGTH_UNITS
-mastX  = hullScreenX(player, mastS, HULL_BEAM_UNITS)     // na burcie od strony planszy
-mastY  = hullScreenY(mastS, HULL_BEAM_UNITS, HULL_HEIGHT_UNITS)   // stopa na linii pokladu
+mastX  = hullScreenX(player, mastS, MAST_BEAM_UNITS)     // w poprzek: srodek szerokosci pokladu
+mastY  = hullScreenY(mastS, MAST_BEAM_UNITS, HULL_HEIGHT_UNITS)   // stopa na linii pokladu
 half   = cell * WIDTH * SAIL_HALF_WIDTH                  // 0.4 szerokosci planszy
 
 drawSailPanel(mastX, half, mastY + rig * SAIL_BOTTOM, mastY + rig * SAIL_TOP)
@@ -454,7 +457,11 @@ rect(mastX - cell * MAST_THICKNESS / 2, mastY, cell * MAST_THICKNESS, rig * MAST
 
 Maszt zostaje **pionowy**, tak jak na szkicu - przechyla sie tylko jego stopa, bo ta lezy na
 opadajacej linii pokladu (`MAST_POSITION = 0.42` liczy sie od rufy, wiec maszt stoi na srodku
-kadluba, a nie przy jego krawedzi). Zagiel bazuje na wysokosci stopy masztu.
+dlugosci kadluba). W poprzek maszt stoi na `MAST_BEAM_UNITS = HULL_BEAM_UNITS / 2`, czyli **na
+srodku szerokosci pokladu**. Wczesniej stal na `HULL_BEAM_UNITS`, czyli na burcie od strony planszy -
+a ze zagiel liczy sie od `mastX`, oba maszty i oba zagla siedzialy tuz przy burcie sasiada (maszty
+dzielilo wtedy 4.21 cell, a os masztu byla 0.312 szerokosci kadluba od dziobu; teraz jest to `0.626`,
+a maszty dzieli 5.64 cell). Zagiel bazuje na wysokosci stopy masztu.
 
 Ksztalt zagla (`drawSailPanel`) - wszystko liczone od `mastX`, `half`, `bottom`, `top`:
 
@@ -492,20 +499,29 @@ pikselu, albo na zadnym - zalezy, po ktorej stronie srodka piksela trafi jej sro
 plotna stykalyby sie na tych wierszach.
 
 Kolejnosc w `drawShip`: **najpierw takielunek, potem kadlub** - `drawSailPanel`, maszt, burta, rufa.
-Maszt stoi na srodku kadluba (glebokosc 17.57 jednostki), a rufa jest najblizej oka (9.45), wiec
-kadlub rysowany na koncu **zabiera zaglowi jego stope**: widoczna dolna krawedz zagla to linia
+Maszt stoi na srodku szerokosci pokladu (glebokosc 17.96 jednostki), a rufa jest najblizej oka
+(9.45), wiec kadlub rysowany na koncu **zabiera zaglowi jego stope** i sam maszt do wysokosci linii
+pokladu w swoim miejscu (`maszt stopa pod burta` = 0.716 cell): widoczna dolna krawedz zagla to linia
 pokladu, a nie wlasna stopa plachty. Odwrotna kolejnosc kladla plachte **na** poklad i na naroznik
 planszy (do 73 px na 1920x1080), co psulo i kadlub, i plansze. Zagiel jest rysowany od
 `mastY + rig * SAIL_BOTTOM` do `mastY + rig * SAIL_TOP`, a ze `rig` jest wieksze od `sky`, glowa
 zagla wypada **powyzej** `sceneTop` i `drawSceneMask()` ucina ja plasko razem z masztem. Efekt:
 nad pokladem widac tylko niski pas dolnej czesci zagla i gruby maszt wchodzacy w gore poza ekran.
 
-`SAIL_BOTTOM = 0.24` jest **dolna granica, nie ozdoba**: stopa zagla jest schowana za kadlubem tylko
+`SAIL_BOTTOM = 0.25` jest **dolna granica, nie ozdoba**: stopa zagla jest schowana za kadlubem tylko
 tak dlugo, jak dlugo jest nad plansza, a zagiel jest 0.8 szerokosci planszy, wiec jego narozniki
-wychodza poza kadlub i nad naroznik planszy. Przy `0.22` stopa dotyka gornej krawedzi planszy
-(0.06 px), przy `0.24` zostaje **5.20 px = 0.065 cell zapasu na 1920x1080** (i 1.09-3.47 px na
-pozostalych siedmiu rozdzielczosciach). Kazde podniesienie `SAIL_BOTTOM` zabiera widoczny zagiel,
-wiec trzyma sie go tak nisko, jak pozwala naroznik planszy.
+wychodza poza kadlub i nad naroznik planszy. Stopa wisi `rig * SAIL_BOTTOM` **nad stopa masztu**
+(na 1920x1080: `266.07 px * 0.25 = 66.5 px`), wiec **0.01 `SAIL_BOTTOM` podnosi ja o 2.66 px**.
+Przy `0.24` wiersz `zagle nad plansza` dawal `+0.015 cell` (0.25-1.18 px) na szesciu
+rozdzielczosciach - i to wystarczalo, dopoki maszt stal na burcie od strony planszy. Po przeniesieniu
+masztu na srodek pokladu jego stopa spadla (maszt stoi glebiej w widoku: 1.485 -> 1.522 cell pod
+pokladem w rogu, na 1920x1080 3.0 px), a razem z nia stopa zagla - przy `0.24` weszlaby na plansze na
+szesciu rozdzielczosciach, dlatego `SAIL_BOTTOM` poszlo na `0.25` i wiersz daje teraz `+0.019 cell`
+(0.33-1.56 px). Na dwoch bardzo szerokich ekranach (2400x1080, 2992x1344) stopa i tak wchodzi na
+plansze o 2-3 px, ale wchodzila juz przy `0.24` (-2.53 / -3.42 px) - to proporcja planszy na
+ultra-wide, a nie takielunek, wiec nie naprawia sie tego `SAIL_BOTTOM` (byloby to odebranie
+widocznego zagla na wszystkich pozostalych ekranach). Kazde podniesienie `SAIL_BOTTOM` zabiera
+widoczny zagiel, wiec trzyma sie go tak nisko, jak pozwala naroznik planszy.
 
 W praktyce niebo nad stopa masztu ma 1.16-2.00 cell (`NET_SCALE` od 1.0 do 1.2), a widoczny pas
 zagla to jego dolna czesc az do linii pokladu - na 1920x1080 okolo 155 px przy maszcie. Maszt ma
@@ -833,7 +849,8 @@ wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 d
 | Grubszy / cienszy maszt | `MAST_THICKNESS` |
 | Inna wysokosc masztu nad pokladem | `MAST_TOP` |
 | Gdzie konczy sie widok (i takielunek) | `MAST_BAND` (niebo) - ciecie idzie po `sceneTop` |
-| Inne polozenie masztu | `MAST_POSITION` |
+| Inne polozenie masztu (wzdluz kadluba) | `MAST_POSITION` |
+| Inne polozenie masztu (w poprzek pokladu: blizej burty od strony planszy lub dalej) | `MAST_BEAM_UNITS` (`HULL_BEAM_UNITS / 2` = srodek szerokosci pokladu, `HULL_BEAM_UNITS` = burta od strony planszy). Uwaga: maszt niesie zagiel, wiec przesuwa tez stope zagla i wiersz `zagle nad plansza` - patrz `SAIL_BOTTOM` |
 | Wiecej / mniej nieba i morza | `MAST_BAND`, `SEA_DEPTH` (proporcja miedzy nimi dzieli nadwyzke sceny) |
 | Wyszej / nizej horyzont | `HORIZON_HEIGHT_CELLS` |
 | Inne slonce | `SUN_*` |
@@ -893,8 +910,20 @@ zadnej stalej wprost:
   SHIP_STANDOFF_CELLS = 0` oraz `STRAND_LASH_CELLS = SHIP_STANDOFF_CELLS - HATCH_SPAN_CELLS`, czyli
   `SHIP_GAP_CELLS` **wyprowadzone** z `HULL_BOW_CELLS`, `HATCH_REAR_CELLS` i `SHIP_STANDOFF_CELLS`;
 * **stopa zagla zostaje nad plansza** - wiersz `zagle nad plansza` musi byc dodatni w kazdej
-  rozdzielczosci (na 1920x1080 jest to `+5.20 px`); zagiel rysowany jest przed kadlubem, wiec jego
-  dol jest ukryty i widoczna krawedz zagla to linia pokladu, ale sam zagiel nie moze wejsc na plansze;
+  rozdzielczosci (na 1920x1080 jest to `+1.56 px = 0.019 cell`; na 2400x1080 i 2992x1344 wychodzi
+  `-2.23` / `-3.05 px`, tak jak wychodzilo przed przeniesieniem masztu na srodek pokladu, wiec to
+  proporcja planszy na ultra-wide, a nie takielunek); zagiel rysowany jest przed kadlubem, wiec jego
+  dol jest ukryty i widoczna krawedz zagla to linia pokladu, ale sam zagiel nie moze wejsc na plansze.
+  Uwaga na sprzezenie: stopa zagla wisi `rig * SAIL_BOTTOM` nad stopa **masztu**, wiec kazde
+  przesuniecie masztu - takze w poprzek pokladu, przez `MAST_BEAM_UNITS` - przesuwa tez stopa zagla
+  (`0.01 SAIL_BOTTOM` to `rig * 0.01` px, na 1920x1080 2.66 px);
+* **maszt stoi na srodku szerokosci pokladu, a nie przy burcie sasiada** - wiersz `maszt na belce`
+  ma wyjsc `1.50 z 3.00 jednostki = 0.500 szerokosci pokladu (OK)`, a `maszt od cudzej burty` ma byc
+  **dodatni** (odleglosc osi masztu od blizszej burty *sasiedniego* statku; teraz `4.217 cell` na
+  kazdej rozdzielczosci) - maszt ma stac za wlasnym kadlubem, a nie nad cudzym drewnem. `maszt
+  stopa pod burta` (`0.716 cell`) mowi, ile stopy masztu zaslania blizsza burta: wartosc dodatnia
+  jest potrzebna, zeby maszt wyrastal z pokladu, a nie z powietrza (przy `0` albo na minusie widac
+  szczeline miedzy stopa masztu a linia pokladu);
 * **luki siedza na burcie** - kontrola `luk w burcie` i zakres `x` luku musza sie zgadzac, bo obszar
   dotyku lukow jest budowany z tego samego rzutu (sekcja 9);
 * **luk jest kwadratem na burcie, nie prostokatem na ekranie** - wiersz `luk skos / skos pokladu`
@@ -972,11 +1001,17 @@ Inne tryby (pojedynczo) wybiera sie wlasciwoscia `-PvizMain=`, np. `-PvizMain=vi
   luku (`luk otoczka wysokosc`, czyli obszar dotkniecia), kontrola `luk w burcie`, szerokosc zagla,
   wysokosc zawieszenia
   zagla nad stopa masztu, wysokosc obciecia maska, **`zagle nad plansza`** (znakowana odleglosc
-  stopy zagla od gornej krawedzi planszy; wartosc ujemna to blad), szerokosc masztu, jego os `x`,
-  wysokosc stopy i wysokosc;
+  stopy zagla od gornej krawedzi planszy; wartosc ujemna to blad), szerokosc masztu, jego os `x`
+  (takze jako udzial szerokosci kadluba od dziobu), `maszt na belce` (gdzie maszt stoi w poprzek
+  pokladu, w jednostkach burty i jako udzial jej szerokosci - ma wyjsc `0.500`),
+  `maszt od cudzej burty` (o ile pikseli i oczek os masztu mija blizsza burte **sasiedniego**
+  statku; dodatnia, gdy maszt stoi za wlasnym kadlubem), `maszt stopa pod burta` (ile stopy masztu
+  zaslania blizsza burta, czyli na ile maszt wyrasta z pokladu), wysokosc stopy i wysokosc;
 * **pomiar z pikseli** - niezalezny od modelu skan koloru na gotowym obrazie, ktory mierzy kadlub
   (`HULL_COLOR`), obie sciany (`HULL_COLOR` i `HULL_STERN_COLOR`), gorna krawedz burty przy rufie
-  i przy dziobie (z tego wychodzi zmierzony opad pokladu) oraz maszt. Zgodnosc z liczbami
+  i przy dziobie (z tego wychodzi zmierzony opad pokladu) oraz maszt - szerokosc, **os `x` z
+  porownaniem do modelu** (`OK` przy roznicy do 1 px; 0.52 px na 400x800) i gorna krawedz masztu
+  wzgledem ciecia sceny. Zgodnosc z liczbami
   wyliczonymi oznacza, ze i wzory, i rysowanie sa w porzadku. Roznica kilku pikseli na krawedziach
   (antyaliasing i zaokraglenie do piksela) jest normalna, ale pomiar przyciety krawedzia ekranu
   jest oznaczany jako `UWAGA`;

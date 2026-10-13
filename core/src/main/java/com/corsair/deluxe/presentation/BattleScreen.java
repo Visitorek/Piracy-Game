@@ -411,6 +411,12 @@ public class BattleScreen extends ScreenAdapter {
     /** Where the mast stands on the hull, as a share of the hull's length from its stern. */
     private static final float MAST_POSITION = 0.42f;
     /**
+     * Where the mast stands across the deck, in ship units: half the beam, that is the middle of the
+     * deck's width. Standing on the wall facing the board instead put both masts right beside the
+     * neighbouring hull, which read as masts lashed to the wrong ship.
+     */
+    private static final float MAST_BEAM_UNITS = HULL_BEAM_UNITS / 2f;
+    /**
      * Half-width of the sail, as a share of the board's width: the sail is twice this, so it comes out
      * four fifths of the board wide and runs off the edge of the screen on the seaward side. This is
      * the width along the yard, at the head, which is as wide as the sail ever gets.
@@ -427,9 +433,11 @@ public class BattleScreen extends ScreenAdapter {
      * The single sail, as shares of the rigging height above the deck: its foot hangs clear of both
      * the deck and the near corner of the board, and its head sits above the sky so the scene mask
      * cuts the sail off flat at the top. Raising the foot costs sail, so this is kept as low as the
-     * corner of the board allows.
+     * corner of the board allows: the mast at the middle of the deck's width stands further from the
+     * eye than it did on the board-facing wall, so its foot - and the sail hung on it - comes out
+     * lower on screen, and 0.25 is what it now takes to keep the foot over the top edge of the board.
      */
-    private static final float SAIL_BOTTOM = 0.24f;
+    private static final float SAIL_BOTTOM = 0.25f;
     private static final float SAIL_TOP = 0.95f;
     /** How many segments the sagging foot of the sail is cut into. */
     private static final int SAIL_SEGMENTS = 16;
@@ -1325,7 +1333,7 @@ public class BattleScreen extends ScreenAdapter {
     /**
      * The two ships the net is strung between. Each one is the wooden box of the sketch, seen at 15
      * degrees off its axis: the long wall facing the net runs away towards the bow, with the stern
-     * standing beside it, and the foot of the rigging stands on the deck along the top of the wall.
+     * standing beside it, and the foot of the rigging stands on the middle of the deck's width.
      */
     private void drawShips() {
         drawShip(true);
@@ -1333,24 +1341,25 @@ public class BattleScreen extends ScreenAdapter {
     }
 
     private void drawShip(boolean player) {
-        // Rigging first: the mast stands amidships, well behind the near side of the hull, so the hull
-        // drawn over it afterwards swallows the foot of the sail the way it would in a real 15 degree
-        // view. Only the part above the deck line stays in sight: a heavy mast running out of the deck
-        // towards the top of the sky, carrying one square sail, four fifths of the board wide, whose
-        // foot sags between its clews. The scene mask then cuts mast, sail and everything above them
-        // off at the top of the sky.
+        // Rigging first: the mast stands on the middle of the deck's width, well behind the near side
+        // of the hull, so the hull drawn over it afterwards swallows the foot of the mast and the sail
+        // the way it would in a real 15 degree view. Only the part above the deck line stays in sight:
+        // a heavy mast running out of the deck towards the top of the sky, carrying one square sail,
+        // four fifths of the board wide, whose foot sags between its clews. The scene mask then cuts
+        // mast, sail and everything above them off at the top of the sky.
         float mastS = MAST_POSITION * HULL_LENGTH_UNITS;
-        float mastX = hullScreenX(player, mastS, HULL_BEAM_UNITS);
+        float mastX = hullScreenX(player, mastS, MAST_BEAM_UNITS);
         // The mast stands upright, so its foot sits on the deck line at its own place along the hull.
-        float mastY = hullScreenY(mastS, HULL_BEAM_UNITS, HULL_HEIGHT_UNITS);
+        float mastY = hullScreenY(mastS, MAST_BEAM_UNITS, HULL_HEIGHT_UNITS);
         float sky = Math.max(cell * RIGGING_MIN_SKY, sceneTop - mastY);
         float rig = sky + cell * RIGGING_OVERFLOW;
         float half = cell * BattleState.WIDTH * SAIL_HALF_WIDTH;
 
         // SAIL_BOTTOM is measured from the foot of the mast, so it has to carry the foot of the sail
-        // over the top of the board: the hull only hides the cloth below the deck line, and that line
-        // falls away towards the bow, where the foot of the sail hangs out past the hull and over the
-        // near corner of the board.
+        // over the top of the board: the hull only hides the cloth below the deck line - the top edge
+        // of the near wall, which swallows the foot of the mast as well - and that line falls away
+        // towards the bow, where the foot of the sail hangs out past the hull and over the near corner
+        // of the board.
         drawSailPanel(mastX, half, mastY + rig * SAIL_BOTTOM, mastY + rig * SAIL_TOP);
 
         shapes.setColor(HULL_COLOR);
