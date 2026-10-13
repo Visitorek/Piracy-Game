@@ -483,9 +483,12 @@ public class BattleScreen extends ScreenAdapter {
     private static final float HATCH_ENEMY_BRIGHTNESS = 0.8f;
     /** The tap target of a hatch is widened by this many cells on each side. */
     private static final float HATCH_TAP_REACH = 1f;
-    /** Waiting crew are ticked off just outside the hatch: this far out, this high, this far apart. */
+    /**
+     * Waiting crew are ticked off just outside the hatch: this far out, this far apart. The column
+     * hangs from the top edge of its hatch, so it follows the hatch over the hull rather than the row
+     * of the board the hatch belongs to.
+     */
     private static final float WAITING_MARKER_INSET = 0.36f;
-    private static final float WAITING_MARKER_TOP = 0.82f;
     private static final float WAITING_MARKER_STEP = 0.22f;
     private static final float WAITING_MARKER_RADIUS = 0.08f;
     /** A waiting marker is a circle of this many segments. */
@@ -1320,6 +1323,21 @@ public class BattleScreen extends ScreenAdapter {
     }
 
     /**
+     * The height of the top edge of one hatch over a given screen x. The edge is a straight line in the
+     * projection, so it can be followed past the end it stops at: the waiting markers stand beside the
+     * hatch and hang from that line, and this is what keeps them on the hatch in every row.
+     */
+    private float hatchTopEdgeY(boolean player, int index, float screenX) {
+        float high = hatchLow(index) + HATCH_OPEN_UNITS;
+        float rearX = hatchRearX(player);
+        float bowX = hatchBowX(player);
+        float rearY = hatchCornerY(false, high);
+        float bowY = hatchCornerY(true, high);
+        float span = bowX - rearX;
+        return span == 0f ? rearY : rearY + (bowY - rearY) * (screenX - rearX) / span;
+    }
+
+    /**
      * Wipes off everything above the sky band with the backdrop colour. The rigging is drawn tall
      * enough to leave the scene, so this is what cuts the masts and the sails off flat at the top of
      * the sky, just under the text band. The sky itself stops at the same line, so the mask only ever
@@ -1637,15 +1655,15 @@ public class BattleScreen extends ScreenAdapter {
         }
 
         // One small marker per pirate still waiting inside; drawn outside the hatch on the side away
-        // from the net, from the top of its row down, so the markers stay put however the hatch is
-        // placed on the hull.
+        // from the net, hanging from the top edge of its own hatch, so the markers sit the same way on
+        // the hatch whichever row of the board it belongs to.
         int waiting = state.getHatchCrew(owner, index);
         if (waiting <= 0) {
             return;
         }
         float out = player ? hatchLeft(player) - cell * WAITING_MARKER_INSET
                 : hatchRight(player) + cell * WAITING_MARKER_INSET;
-        float top = cellBottom(y) + cell * WAITING_MARKER_TOP;
+        float top = hatchTopEdgeY(player, index, out);
         float step = cell * WAITING_MARKER_STEP;
         shapes.setColor(owner == BattleSide.PLAYER ? PLAYER_COLOR : ENEMY_COLOR);
         for (int i = 0; i < waiting; i++) {

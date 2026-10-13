@@ -615,7 +615,7 @@ wszystkich 8 rozdzielczosciach).
 | `HATCH_CLOSED_BRIGHTNESS` | 0.6 | zamkniety luk jest tak przygaszony |
 | `HATCH_ENEMY_BRIGHTNESS` | 0.8 | luki wroga sa zawsze przygaszone |
 | `HATCH_TAP_REACH` | 1 cell | o tyle poszerzony jest obszar dotyku luku z kazdej strony (luki na burcie sa wezsze od oczka, wiec bez tego bylyby trudne do trafienia) |
-| `WAITING_MARKER_INSET` / `WAITING_MARKER_TOP` | 0.36 / 0.82 cell | gdzie zaczyna sie slupek oczekujacych |
+| `WAITING_MARKER_INSET` | 0.36 cell | o ile slupek oczekujacych stoi w bok od krawedzi luku; **wysokosc nie jest stala** - slupek wisi z gornej krawedzi wlasnego luku (`hatchTopEdgeY`) |
 | `WAITING_MARKER_STEP` / `WAITING_MARKER_RADIUS` | 0.22 / 0.08 cell | odstep i promien znacznikow |
 | `WAITING_MARKER_SEGMENTS` | 12 | ile segmentow ma znacznik |
 | `HATCH_PULSE_BASE` / `HATCH_PULSE_SWING` / `HATCH_PULSE_SPEED` | 0.65 / 0.35 / 5 | puls gotowego luku: `base + swing * sin(t * speed)` |
@@ -678,7 +678,13 @@ Trzy wlasnosci tego rzutu, ktore trzeba zachowac przy zmianach:
   jego polozeniem wzdluz statku (`s`), nigdy wysokoscia; dlatego luk nie jest przekrzywiony;
 * **gorna i dolna krawedz opadaja od rufy do dziobu** - dokladnie tak, jak linia pokladu nad nimi,
   bo wysokosc `y` dzieli sie przez `depth`, a `depth` rosnie z `s`. Na 1920x1080 gorna krawedz
-  opada `18.69 px = 0.232 cell`, dolna `12.46 px = 0.155 cell`;
+  opada `18.69 px = 0.232 cell`, dolna `12.46 px = 0.155 cell`. Opad **zalezy od rzedu** i zmienia
+  znak: im nizej lezy luk, tym blizej wysokosci oka jest jego gorna krawedz, wiec opad maleje,
+  przechodzi przez zero i rosnie w druga strone - na najnizszym rzedzie naroznik dziobowy jest
+  **wyzej** od rufowego (`-11.51 px` na 1920x1080, wiersz 4). Dlatego `hatchTopEdgeY` przedluzona
+  w bok na nizszych lukach wypada **pod** naroznikiem luku (na 1920x1080 `+23.28 px` w wierszu 0
+  i `-26.08 px` w wierszu 4, wiersz `kropki wobec naroznika luku`) - to nie blad, tylko ta sama
+  prosta poprowadzona dalej;
 * **opad luku to `3.0 / 3.5` opadu pokladu** - stosunek `(H - low - 0.5) / H` dla srodka kolumny
   (`low = 5.5` dla pierwszego luku), bo skos jest liniowy w `y`. Narzedzie porownuje te dwie liczby
   w wierszu `luk skos / skos pokladu` (0.86 wobec oczekiwanego 0.857).
@@ -690,6 +696,17 @@ z perspektywa: na 1920x1080 ma `22.87 px = 0.284 cell` szerokosci i `70.29 px = 
 (przy dziobie `64.07 px = 0.796 cell`, bo dziob jest dalej od oka), a na 400x800 ledwie kilka
 pikseli. Slupek oczekujacych znacznikow stoi tuz obok, od strony rufy
 (`WAITING_MARKER_INSET`), wiec na waskim ekranie ladnie przylega do ciemnej rufy.
+
+**Slupek wisi z gornej krawedzi swojego luku.** Gorna krawedz luku jest w rzucie prosta, wiec mozna
+ja poprowadzic dalej poza naroznik, na ktorym sie zatrzymuje - i to wlasnie robi `hatchTopEdgeY`:
+przyjmuje ekranowy `x` i zwraca wysokosc krawedzi w tym miejscu (`rearY + (bowY - rearY) * (x -
+rearX) / (bowX - rearX)`, z zerem przy `span == 0`). Srodek najwyzszej kropki siada **dokladnie na
+tej przedluzonej linii** (`top = hatchTopEdgeY(player, index, out)`, a kolejne kropki o `top -
+i * WAITING_MARKER_STEP`), wiec kazdy rzad ma slupek na swojej wlasnej krawedzi, a nie na wspolnym
+poziomie. Wczesniej slupek liczyl sie z planszy (`cellBottom(y) + 0.82 cell`), a ze kolumna lukow
+schodzi po burcie, a plansza po ekranie, slupek rozjezdzal sie z lukiem o `0.166 cell` na kazdy
+wiersz: na 1920x1080 pierwsza kropka stala `44.16 px` za nisko, a najnizsza `9.33 px` za wysoko
+(wiersze 1-3 przechodzily przez zero). Sam odstep kropek w slupku zostal bez zmian (`0.22 cell`).
 
 Obszar dotyku lukow w `handleInput` jest budowany z tego samego rzutu, ale z **pudelka**
 (`hatchLeft` / `hatchRight` x `hatchBottom` / `hatchTop`), bo przekrzywiony luk nie jest juz
@@ -868,6 +885,8 @@ wezszy niz napis "UCIECZKA", wiec `drawFleeLabel` zmniejsza napis - na 400x800 d
 | Wieksze litery N/E/S/W i "GO!" | `COMPASS_LABEL_SIZE` |
 | Wlaczanie / wylaczanie przeciagania igly | galaz `dragging` w `handleInput` |
 | Inny przycisk ucieczki | `FLEE_*` |
+| Inny odstep kropek w lukach (i ich wielkosc) | `WAITING_MARKER_STEP`, `WAITING_MARKER_RADIUS`, `WAITING_MARKER_SEGMENTS` - wysokosc najwyzszej kropki nie jest stala, liczy sie z gornej krawedzi wlasnego luku, wiec odstep zmienia tylko dlugosc slupka |
+| Blizej / dalej luku stoja kropki | `WAITING_MARKER_INSET` (w bok, w strone dziobu) |
 | Inne kolory stron | `PLAYER_COLOR`, `ENEMY_COLOR` |
 
 ## 10. Liczby, ktore celowo zostaly inline
@@ -926,6 +945,16 @@ zadnej stalej wprost:
   szczeline miedzy stopa masztu a linia pokladu);
 * **luki siedza na burcie** - kontrola `luk w burcie` i zakres `x` luku musza sie zgadzac, bo obszar
   dotyku lukow jest budowany z tego samego rzutu (sekcja 9);
+* **slupek oczekujacych wisi z gornej krawedzi swojego luku** - wiersz `kropki gora kolumna 0-4`
+  podaje policzona wysokosc najwyzszej kropki w kazdym rzedzie, a blok `z pikseli, kropki
+  czekajacych` czyta jej os z obrazu (kolumna o szerokosci jednego piksela, okno od `0.5 cell` pod
+  kropka do `0.2 cell` nad nia - kropki sasiedniego luku sa `1.166 cell` wyzej, wiec nie wchodza).
+  Wszystkie **80** odczytow (5 rzedow x 2 statki x 8 rozdzielczosci) musza konczyc sie na `OK`,
+  czyli zmiescic sie w `MARKER_TOLERANCE_PX = 2 px`; zostaje `-1.37 px` na 1280x720 (kropki stoja po
+  stronie rufy, gdzie gorna krawedz luku schodzi najszybciej, a jej obrys zjada piksel). Kropka
+  liczona z planszy (`cellBottom(y) + 0.82 cell`) rozjezdzalaby sie z lukiem o `0.166 cell` na
+  wiersz - to wlasnie pokazuje wiersz `kropki krok kolumny` (`1.166 cell` zamiast `1.000`) oraz
+  `kropki przesuniecie wobec starej kotwicy` (na 1920x1080 `+44.16 / -9.33 px`);
 * **luk jest kwadratem na burcie, nie prostokatem na ekranie** - wiersz `luk skos / skos pokladu`
   musi dawac 0.84 (tyle, ile `2.95 / 3.5` opadu pokladu), a blok `gora luku z pikseli` musi czytac
   **oba** narozniki gornej krawedzi: naroznik rufowy wyzej od dziobowego o policzona wartosc
@@ -1006,12 +1035,22 @@ Inne tryby (pojedynczo) wybiera sie wlasciwoscia `-PvizMain=`, np. `-PvizMain=vi
   pokladu, w jednostkach burty i jako udzial jej szerokosci - ma wyjsc `0.500`),
   `maszt od cudzej burty` (o ile pikseli i oczek os masztu mija blizsza burte **sasiedniego**
   statku; dodatnia, gdy maszt stoi za wlasnym kadlubem), `maszt stopa pod burta` (ile stopy masztu
-  zaslania blizsza burta, czyli na ile maszt wyrasta z pokladu), wysokosc stopy i wysokosc;
+  zaslania blizsza burta, czyli na ile maszt wyrasta z pokladu), wysokosc stopy i wysokosc; osobno
+  kropki oczekujacych marynarzy - `kropki x` (kolumna slupka), `kropki w lukach` (ile sztuk
+  w kazdym rzedzie bierze sie ze stanu gry), `kropki gora wiersz 0 / 4` i `kropki gora kolumna 0-4`
+  (wysokosc najwyzszej kropki w kazdym rzedzie, czyli gorna krawedz luku przedluzona do kolumny
+  kropek), `kropki krok kolumny` (`1.166 cell` - gdyby slupek szedl z plansza, byloby `1.000`),
+  `kropki wobec naroznika luku` (o ile przedluzenie krawedzi mija wlasny naroznik luku; znak zmienia
+  sie z rzedem), `kropki nad krawedzia planszy` i `kropki przesuniecie wobec starej kotwicy`
+  (o ile najwyzsza kropka wiersza 0 / 4 stoi wyzej niz stala kotwica z planszy);
 * **pomiar z pikseli** - niezalezny od modelu skan koloru na gotowym obrazie, ktory mierzy kadlub
   (`HULL_COLOR`), obie sciany (`HULL_COLOR` i `HULL_STERN_COLOR`), gorna krawedz burty przy rufie
   i przy dziobie (z tego wychodzi zmierzony opad pokladu) oraz maszt - szerokosc, **os `x` z
   porownaniem do modelu** (`OK` przy roznicy do 1 px; 0.52 px na 400x800) i gorna krawedz masztu
-  wzgledem ciecia sceny. Zgodnosc z liczbami
+  wzgledem ciecia sceny. Ten sam skan czyta **os `y` kropek oczekujacych** (`z pikseli, kropki
+  czekajacych`): dla kazdego z pieciu rzedow i obu statkow szuka w kolumnie `kropki x` srodka
+  krazka w kolorze `PLAYER_COLOR` / `ENEMY_COLOR` i porownuje go z `kropki gora kolumna 0-4`
+  (`OK` przy roznicy do `MARKER_TOLERANCE_PX = 2 px`). Zgodnosc z liczbami
   wyliczonymi oznacza, ze i wzory, i rysowanie sa w porzadku. Roznica kilku pikseli na krawedziach
   (antyaliasing i zaokraglenie do piksela) jest normalna, ale pomiar przyciety krawedzia ekranu
   jest oznaczany jako `UWAGA`;
