@@ -615,7 +615,7 @@ wszystkich 8 rozdzielczosciach).
 | `HATCH_CLOSED_BRIGHTNESS` | 0.6 | zamkniety luk jest tak przygaszony |
 | `HATCH_ENEMY_BRIGHTNESS` | 0.8 | luki wroga sa zawsze przygaszone |
 | `HATCH_TAP_REACH` | 1 cell | o tyle poszerzony jest obszar dotyku luku z kazdej strony (luki na burcie sa wezsze od oczka, wiec bez tego bylyby trudne do trafienia) |
-| `WAITING_MARKER_INSET` | 0.36 cell | o ile slupek oczekujacych stoi w bok od krawedzi luku; **wysokosc nie jest stala** - slupek wisi z gornej krawedzi wlasnego luku (`hatchTopEdgeY`) |
+| `WAITING_MARKER_INSET` | 0.36 cell | o ile slupek oczekujacych stoi w bok od krawedzi luku; **wyrownany gorą do gornego tylnego naroznika luku** (`rearTop - WAITING_MARKER_RADIUS`) |
 | `WAITING_MARKER_STEP` / `WAITING_MARKER_RADIUS` | 0.22 / 0.08 cell | odstep i promien znacznikow |
 | `WAITING_MARKER_SEGMENTS` | 12 | ile segmentow ma znacznik |
 | `HATCH_PULSE_BASE` / `HATCH_PULSE_SWING` / `HATCH_PULSE_SPEED` | 0.65 / 0.35 / 5 | puls gotowego luku: `base + swing * sin(t * speed)` |
@@ -697,16 +697,11 @@ z perspektywa: na 1920x1080 ma `22.87 px = 0.284 cell` szerokosci i `70.29 px = 
 pikseli. Slupek oczekujacych znacznikow stoi tuz obok, od strony rufy
 (`WAITING_MARKER_INSET`), wiec na waskim ekranie ladnie przylega do ciemnej rufy.
 
-**Slupek wisi z gornej krawedzi swojego luku.** Gorna krawedz luku jest w rzucie prosta, wiec mozna
-ja poprowadzic dalej poza naroznik, na ktorym sie zatrzymuje - i to wlasnie robi `hatchTopEdgeY`:
-przyjmuje ekranowy `x` i zwraca wysokosc krawedzi w tym miejscu (`rearY + (bowY - rearY) * (x -
-rearX) / (bowX - rearX)`, z zerem przy `span == 0`). Srodek najwyzszej kropki siada **dokladnie na
-tej przedluzonej linii** (`top = hatchTopEdgeY(player, index, out)`, a kolejne kropki o `top -
-i * WAITING_MARKER_STEP`), wiec kazdy rzad ma slupek na swojej wlasnej krawedzi, a nie na wspolnym
-poziomie. Wczesniej slupek liczyl sie z planszy (`cellBottom(y) + 0.82 cell`), a ze kolumna lukow
-schodzi po burcie, a plansza po ekranie, slupek rozjezdzal sie z lukiem o `0.166 cell` na kazdy
-wiersz: na 1920x1080 pierwsza kropka stala `44.16 px` za nisko, a najnizsza `9.33 px` za wysoko
-(wiersze 1-3 przechodzily przez zero). Sam odstep kropek w slupku zostal bez zmian (`0.22 cell`).
+**Slupek jest wyrownany gora do gornego tylnego naroznika luku.** Gorna krawedz pierwszej (najwyzszej)
+kropki w slupku przylega do poziomej linii wyznaczonej przez gorny tylny naroznik luku (`rearTop = hatchCornerY(false, high)`),
+czyli srodek pierwszej kropki ma wysokosc `top = rearTop - cell * WAITING_MARKER_RADIUS`, a kolejne kropki
+rozmieszczone sa co `top - i * WAITING_MARKER_STEP`. Dzięki temu wskaźniki są zawsze spójnie wyrównane do górnej tylnej
+części luków na obu okrętach. Sam odstęp kropek w słupku pozostał bez zmian (`0.22 cell`).
 
 Obszar dotyku lukow w `handleInput` jest budowany z tego samego rzutu, ale z **pudelka**
 (`hatchLeft` / `hatchRight` x `hatchBottom` / `hatchTop`), bo przekrzywiony luk nie jest juz
@@ -722,17 +717,16 @@ w dowolnym miejscu luku zawsze otwiera ten luk.
 
 | Parametr | Wartosc | Co robi |
 |---|---|---|
-| `COMPASS_RADIUS_CELLS` | 1.6 cell | promien tarczy kompasu (srednica 3.2 oczka); `min` z polowa wolnej wody i z wolnym pasem nad i pod tarcza, podzielonym przez `COMPASS_ARROW_TIP` |
+| `COMPASS_RADIUS_CELLS` | 1.6 cell | promien tarczy kompasu (srednica 3.2 oczka); `min` z polowa wolnej wody i z wolnym pasem nad i pod tarcza |
 | `COMPASS_RIM_RING` | 0.055 | grubosc obwodki jako udzial promienia |
-| `COMPASS_GO_RADIUS` | 0.34 | promien plytki "GO!" - dokladnie tyle wynosi tez zasieg dotkniecia wykonujacego ruch |
-| `COMPASS_ARROW_INNER` / `COMPASS_ARROW_HEAD` / `COMPASS_ARROW_TIP` | 1 / 1.10 / 1.28 | gdzie zaczyna sie i konczy strzalka kierunku: trzonek idzie od samej obwodki do `COMPASS_ARROW_HEAD`, a grot do `COMPASS_ARROW_TIP` |
-| `COMPASS_ARROW_STEM` / `COMPASS_ARROW_WING` | 0.16 / 0.21 | polowa szerokosci trzonka i polowa podstawy grota |
+| `GO_HALF_WIDTH_LINES` / `GO_HALF_HEIGHT_LINES` | 2.5 / 1.1 linie | rozmiar prostokątnej płytki "GO!" umieszczonej pod kompasem |
+| `GO_GAP_LINES` | 0.5 linie | odstęp między kompasem a przyciskiem "GO!" |
 | `COMPASS_LETTER_RING` | 0.78 | okrag, po ktorym rozlozone sa litery N/E/S/W, jako udzial promienia |
-| `COMPASS_LABEL_SIZE` | 0.28 | wysokosc liter i napisu "GO!" jako udzial promienia tarczy |
-| `NEEDLE_LENGTH` / `NEEDLE_HALF_WIDTH` | 0.86 / 0.16 | igla wzgledem promienia; igla jest tak samo szeroka jak trzonek strzalki, a konczy sie plasko |
-| `DIAL_SEGMENTS` / `MARK_SEGMENTS` | 48 / 12 | ile trojkatow maja kola tarczy i okragla plytka "GO!" |
+| `COMPASS_LABEL_SIZE` | 0.28 | wysokosc liter jako udzial promienia tarczy |
+| `NEEDLE_REAR_SHARE` / `NEEDLE_SHOULDER_SHARE` / `NEEDLE_TIP_SHARE` | 0.38 / 0.68 / 0.90 | wydłużona igła zamocowana w 1/3 długości (ogon 0.38 r, przód 0.90 r z ściętym czubkiem) |
+| `DIAL_SEGMENTS` / `MARK_SEGMENTS` | 48 / 12 | ile trojkatow maja kola tarczy |
 | `BUTTON_FACE_COLOR` | 0.2, 0.2, 0.28 | kolor tarczy (i tla pod obwodka) |
-| `ARROW_COLOR` | 0.95, 0.8, 0.35 | kolor obwodki, strzalek kierunkow, igly i plytki "GO!" |
+| `ARROW_COLOR` | 0.95, 0.8, 0.35 | kolor obwodki, igly i plytki "GO!" |
 | `CONTROL_INACTIVE` | 0.45 | o tyle przygaszone jest wszystko, co teraz nie dziala |
 | `FLEE_LABEL_PAD` | 0.4 linie | oddech wokol napisu "UCIECZKA" |
 | `FLEE_COLOR` | 0.45, 0.12, 0.12 | ciemna czerwien przycisku ucieczki |
@@ -740,44 +734,28 @@ w dowolnym miejscu luku zawsze otwiera ten luk.
 | `FLEE_CORNER_GAP_LINES` | 0.5 linie | oddech miedzy pasem tekstu a plytka |
 
 **Kompas** (`drawControls`) rysuje w kolejnosci: tarcza (`circle` w `BUTTON_FACE_COLOR`), obwodka
-(`circle` w `ARROW_COLOR` i na nim mniejszy `circle` w `BUTTON_FACE_COLOR`), trzy strzalki kierunkow
-**poza** obwodka, igla (prostokat od srodka do `NEEDLE_LENGTH`) i plytka "GO!" (kolo o promieniu
-`compassRadius * COMPASS_GO_RADIUS` w `ARROW_COLOR`, ktore przykrywa wewnetrzny koniec igly).
-Trzy strzalki to dokladnie trzy dozwolone kierunki igly: prawo, prawa gora, prawy dol (`FORWARD`,
-`FORWARD_UP`, `FORWARD_DOWN`). Kazda z nich to `rectLine` (trzonek, `COMPASS_ARROW_STEM` na kazda
-strone) plus `triangle` (grot, `COMPASS_ARROW_WING` na kazda strone); trzonek zaczyna sie na samej
-obwodce (`COMPASS_ARROW_INNER`), a grot konczy na `COMPASS_ARROW_TIP`, wiec nie ma miedzy nimi ani
-szczeliny, ani kolizji z literami. Strzalki sa **tylko ozdoba** - dotyk obsluguje tarcza (patrz
-nizej), a one same nie reaguja na nic.
+(`circle` w `ARROW_COLOR` i na nim mniejszy `circle` w `BUTTON_FACE_COLOR`), podziałki co 5° wokół obwódki (`drawCompassRose`),
+8-ramienną żeglarską różę wiatrów w tle tarczy, igłę kompasu oraz mały środkowy punkt osi igły.
+Przycisk **"GO!"** znajduje się jako osobny przycisk pod kompasem (`shapes.rect` w `ARROW_COLOR`).
 
-**Igla** (`drawNeedle`) to `rectLine`, czyli prostokat o stalej szerokosci `2 * NEEDLE_HALF_WIDTH`
-(tyle samo, co trzonek strzalki) i **plaskich** koncach - dlatego konczy sie tepo, a nie w szpic.
-Wolana jest dwa razy: raz z tarcza (od srodka), raz po literach (od `COMPASS_GO_RADIUS`), bo
-przecina litere `E`.
+**Igla** (`drawNeedle`) to jednokolorowa, wydłużona igła nawigacyjna, zamocowana w osi obrotu na ok. 1/3 swojej długości (z prostym, płaskim krótkim ogonkiem z tyłu), zwężająca się płynnie przez całą długość aż do zatępionego (ściętego) szpica na przednim końcu wskazującym kierunek.
+Wolana jest z tarczą oraz ponownie po literach.
 
-**Litery N/E/S/W i "GO!"** (`drawCompassLabels`, wolane na koncu `drawTexts`, bo to potok `batch`)
-sa czysto ozdobna roza kompasu: biale `N`, `E`, `S`, `W` leza na czterech osiach tarczy w odleglosci
-`COMPASS_LETTER_RING`, a na srodku jest czarny napis `GO!`. Rozmiar obu bierze sie z promienia
-tarczy (`compassRadius * COMPASS_LABEL_SIZE`), wiec skaluja sie razem z kompasem; metoda podmienia
-skale fontu i **przywraca ja** po sobie (ten sam wzorzec co `drawFleeLabel`). Litery nic nie
-rezerwuja w ukladzie - leza wewnatrz tarczy, ktora i tak jest wolna woda. Igla przecina litere,
-na ktora wskazuje (przy `FORWARD` jest to `E`), dlatego igla wraca na wierzch trzecim przebiegiem
-`draw()` - litera pod igla jest zaslaniana, a nie odwrotnie.
+**Litery kierunków** (`drawCompassLabels`, wolane w `drawTexts`, potok `batch`)
+to ozdobna róża kompasu: białe główne kierunki `N`, `E`, `S`, `W` leżą na czterech osiach tarczy w odległości
+`COMPASS_LETTER_RING`, a szare kierunki pośrednie `NE`, `SE`, `SW`, `NW` usytuowane są na przekątnych (45°). Napis "GO!" na osobnej płytce pod kompasem rysowany jest przez `drawGoLabel`.
 
 **Obsluga dotkniec** (`handleInput`), po tescie plytki ucieczki, a przed testem lukow:
 
-* dotkniecie w odleglosci `<= compassRadius * COMPASS_GO_RADIUS` od srodka **wykonuje ruch** w kierunku,
-  w ktory wskazuje igla (`aimDirection`) - `playerArrow(aimDirection)`. Plytka "GO!" jest wiec
-  jednoczesnie rysowana i klikalna - nie ma osobnego, niewidocznego obszaru dotyku;
-* **przeciagniecie palca** (`dragging`) tylko **ustawia igle**: dopoki palec jest na ekranie, kazdy
-  ruch przelicza `nearestDirection(touchX - compassX, touchY - compassY)`, czyli kat `atan2`
-  przyporzadkowany najblizszemu z trzech kierunkow (granice na `+-22.5` stopnia). Puszczenie palca
-  konczy przeciaganie i **nie** wykonuje ruchu - ruch robi dopiero "GO!";
-* dotkniecie (tap) gdziekolwiek innym w tarczy (`<= compassRadius`) tez tylko **ustawia igle**;
-* dotkniecie poza tarcza idzie dalej, do lukow.
+* dotkniecie w obszarze przycisku **GO!** pod kompasem (`Math.abs(touchX - goX) < goHalfWidth && Math.abs(touchY - goY) < goHalfHeight`)
+  **wykonuje ruch** w kierunku, w ktory wskazuje igla (`aimDirection`) - `playerArrow(aimDirection)`;
+* dotkniecie (tap) lub **przeciagniecie palca** (`dragging`) na tarczy kompasu (`<= compassRadius`)
+  tylko **ustawia igle**: przelicza `nearestDirection(touchX - compassX, touchY - compassY)` (kat `atan2`
+  przyporzadkowany najblizszemu z trzech kierunkow). Puszczenie palca ani dotkniecie samej tarczy nie wykonuje ruchu -
+  ruch wykonuje wylacznie przycisk "GO!" pod kompasem.
 
 `aimDirection` startuje jako `FORWARD` i **przezywa miedzy turami** - igla zostaje tam, gdzie ja
-ustawiono.
+ustawiono. Podczas tury przeciwnika (AI) igła kompasu automatycznie ustawia się w kierunku ruchu wykonanego przez AI (wskazując w lewo, w stronę gracza), dzięki czemu gracz widzi na kompasie, jaki manewr wykonał przeciwnik.
 
 Plytka ucieczki siedzi w prawym gornym rogu **obszaru gry**, wyrownana do `width - margin` i
 zaczepiona pod pasem tekstu (`topBand`), a nie pod kompasem. Na waskich ekranach panel boczny jest

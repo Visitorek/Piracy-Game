@@ -97,22 +97,12 @@ public class BattleScreen extends ScreenAdapter {
     private static final float PANEL_RESERVE_CELLS = 1f;
     /** The compass dial's radius is this many cells, capped by the strip of sea it stands in. */
     private static final float COMPASS_RADIUS_CELLS = 1.6f;
-    /** Shares of the dial radius: the rim ring and the GO button in the middle. */
+    /** Shares of the dial radius: the rim ring. */
     private static final float COMPASS_RIM_RING = 0.055f;
-    private static final float COMPASS_GO_RADIUS = 0.34f;
-    /** Each direction arrow sits outside the rim: a short stem off the dial's edge and a head, so the
-     * whole compass reaches this many dial radii from the centre. The stem starts on the rim itself,
-     * so no sliver of sea opens up between the dial and the arrows. */
-    private static final float COMPASS_ARROW_INNER = 1f;
-    private static final float COMPASS_ARROW_HEAD = 1.10f;
-    private static final float COMPASS_ARROW_TIP = 1.28f;
-    /** Half the width of an arrow's stem, and of the base of its head. */
-    private static final float COMPASS_ARROW_STEM = 0.16f;
-    private static final float COMPASS_ARROW_WING = 0.21f;
-    /** The needle is a flat ended bar: it reaches this far, and it is exactly as wide as an arrow's
-     * stem, so the bar and the arrow beyond the rim read as one line. */
-    private static final float NEEDLE_LENGTH = 0.86f;
-    private static final float NEEDLE_HALF_WIDTH = COMPASS_ARROW_STEM;
+    /** Layout parameters of the GO button under the compass. */
+    private static final float GO_HALF_WIDTH_LINES = 2.5f;
+    private static final float GO_HALF_HEIGHT_LINES = 1.1f;
+    private static final float GO_GAP_LINES = 0.5f;
     /** The cardinal letters sit this far out, and every compass label is this tall a share of the
      * dial radius, so the letters keep their place on the dial at any size. */
     private static final float COMPASS_LETTER_RING = 0.78f;
@@ -565,12 +555,17 @@ public class BattleScreen extends ScreenAdapter {
     private float compassRadius;
     /** Where the compass needle points: the move that the GO button in the middle will make. */
     private JumpDirection aimDirection = JumpDirection.FORWARD;
+    private BattleSide activeSide = BattleSide.PLAYER;
     /** True while a finger that went down on the dial is still dragging the needle. */
     private boolean dragging;
     private float fleeX;
     private float fleeY;
     private float fleeHalfWidth;
     private float fleeHalfHeight;
+    private float goX;
+    private float goY;
+    private float goHalfWidth;
+    private float goHalfHeight;
 
     public BattleScreen(CorsairGame game, WorldScreen returnScreen, Ship playerShip, Ship enemyShip) {
         this.game = game;
@@ -677,17 +672,26 @@ public class BattleScreen extends ScreenAdapter {
         fleeX = width - margin - fleeHalfWidth;
         fleeY = height - margin - topBand - lineHeight * FLEE_CORNER_GAP_LINES - fleeHalfHeight;
 
-        // The compass dial stands in the middle of the sea between the enemy hull and the right
-        // margin, so it never sits over a ship, and it is as big as that strip of sea and the room
-        // left between the top text band and the flee button allow. The strip has to hold the whole
-        // compass, arrows included, hence the division by the reach of an arrow.
+        // The GO button sits under the compass.
+        goHalfWidth = Math.min(rightWidth / 2f, lineHeight * GO_HALF_WIDTH_LINES);
+        goHalfHeight = lineHeight * GO_HALF_HEIGHT_LINES;
+        float goGap = lineHeight * GO_GAP_LINES;
+
+        // The compass dial stands in the middle of the sea between the enemy hull and the right margin.
         float enemyFar = enemyHullFar();
         compassX = (enemyFar + width - margin) / 2f;
-        compassY = boardY + cell * BattleState.HEIGHT / 2f;
+        goX = compassX;
+
         float freeHalf = (width - margin - enemyFar) / 2f;
+        float boardCenterY = boardY + cell * BattleState.HEIGHT / 2f;
+        compassY = boardCenterY + goHalfHeight + goGap / 2f;
+
+        float topAvailable = fleeY - fleeHalfHeight - margin - compassY;
+        float bottomAvailable = compassY - (goHalfHeight * 2f + goGap) - (margin + bottomBand);
         compassRadius = Math.min(cell * COMPASS_RADIUS_CELLS, Math.min(freeHalf,
-                Math.min(fleeY - fleeHalfHeight - compassY, compassY - (margin + topBand)))
-                / COMPASS_ARROW_TIP);
+                Math.min(topAvailable, bottomAvailable)));
+
+        goY = compassY - compassRadius - goGap - goHalfHeight;
     }
 
     @Override
@@ -741,13 +745,14 @@ public class BattleScreen extends ScreenAdapter {
             return;
         }
 
-        float dialX = touchX - compassX;
-        float dialY = touchY - compassY;
-        float dialDistance = (float) Math.sqrt(dialX * dialX + dialY * dialY);
-        if (dialDistance <= compassRadius * COMPASS_GO_RADIUS) {
+        if (Math.abs(touchX - goX) < goHalfWidth && Math.abs(touchY - goY) < goHalfHeight) {
             playerArrow(aimDirection);
             return;
         }
+
+        float dialX = touchX - compassX;
+        float dialY = touchY - compassY;
+        float dialDistance = (float) Math.sqrt(dialX * dialX + dialY * dialY);
         if (dialDistance <= compassRadius) {
             dragging = true;
             aimDirection = nearestDirection(dialX, dialY);
@@ -856,6 +861,10 @@ public class BattleScreen extends ScreenAdapter {
                     : "Brak zalogi na sieci.";
             return;
         }
+        activeSide = BattleSide.PLAYER;
+        if (action.isJump()) {
+            aimDirection = action.getDirection();
+        }
         ActionResult result = state.apply(action);
         if (action.isDeploy()) {
             closeHatches();
@@ -869,6 +878,10 @@ public class BattleScreen extends ScreenAdapter {
             return;
         }
         BattleAction action = ai.chooseAction(state);
+        activeSide = BattleSide.ENEMY;
+        if (action.isJump()) {
+            aimDirection = action.getDirection();
+        }
         ActionResult result = state.apply(action);
         message = "Wrog: " + describe(action, result);
         afterAction();
@@ -882,6 +895,7 @@ public class BattleScreen extends ScreenAdapter {
             return;
         }
         phase = state.getSideToMove() == BattleSide.PLAYER ? Phase.PLAYER_TURN : Phase.ENEMY_TURN;
+        activeSide = phase == Phase.PLAYER_TURN ? BattleSide.PLAYER : BattleSide.ENEMY;
     }
 
     private void flee() {
@@ -1037,7 +1051,7 @@ public class BattleScreen extends ScreenAdapter {
         float needleShade = controlShade();
         shapes.setColor(ARROW_COLOR.r * needleShade, ARROW_COLOR.g * needleShade,
                 ARROW_COLOR.b * needleShade, 1f);
-        drawNeedle(COMPASS_GO_RADIUS);
+        drawNeedle();
         shapes.end();
     }
 
@@ -1322,20 +1336,6 @@ public class BattleScreen extends ScreenAdapter {
         return Math.max(hatchCornerY(false, high), hatchCornerY(true, high));
     }
 
-    /**
-     * The height of the top edge of one hatch over a given screen x. The edge is a straight line in the
-     * projection, so it can be followed past the end it stops at: the waiting markers stand beside the
-     * hatch and hang from that line, and this is what keeps them on the hatch in every row.
-     */
-    private float hatchTopEdgeY(boolean player, int index, float screenX) {
-        float high = hatchLow(index) + HATCH_OPEN_UNITS;
-        float rearX = hatchRearX(player);
-        float bowX = hatchBowX(player);
-        float rearY = hatchCornerY(false, high);
-        float bowY = hatchCornerY(true, high);
-        float span = bowX - rearX;
-        return span == 0f ? rearY : rearY + (bowY - rearY) * (screenX - rearX) / span;
-    }
 
     /**
      * Wipes off everything above the sky band with the backdrop colour. The rigging is drawn tall
@@ -1655,19 +1655,21 @@ public class BattleScreen extends ScreenAdapter {
         }
 
         // One small marker per pirate still waiting inside; drawn outside the hatch on the side away
-        // from the net, hanging from the top edge of its own hatch, so the markers sit the same way on
-        // the hatch whichever row of the board it belongs to.
+        // from the net, top-aligned to the upper rear corner of its own hatch.
         int waiting = state.getHatchCrew(owner, index);
         if (waiting <= 0) {
             return;
         }
         float out = player ? hatchLeft(player) - cell * WAITING_MARKER_INSET
                 : hatchRight(player) + cell * WAITING_MARKER_INSET;
-        float top = hatchTopEdgeY(player, index, out);
+        float high = hatchLow(index) + HATCH_OPEN_UNITS;
+        float rearTop = hatchCornerY(false, high);
+        float radius = cell * WAITING_MARKER_RADIUS;
+        float top = rearTop - radius;
         float step = cell * WAITING_MARKER_STEP;
         shapes.setColor(owner == BattleSide.PLAYER ? PLAYER_COLOR : ENEMY_COLOR);
         for (int i = 0; i < waiting; i++) {
-            shapes.circle(out, top - i * step, cell * WAITING_MARKER_RADIUS, WAITING_MARKER_SEGMENTS);
+            shapes.circle(out, top - i * step, radius, WAITING_MARKER_SEGMENTS);
         }
     }
 
@@ -1703,32 +1705,17 @@ public class BattleScreen extends ScreenAdapter {
                 BUTTON_FACE_COLOR.b * shade, 1f);
         shapes.circle(compassX, compassY, r * (1f - COMPASS_RIM_RING), DIAL_SEGMENTS);
 
-        // The three arrows outside the rim are exactly the three moves the needle may point at. They
-        // stay off the dial, so the cardinal letters drawn inside it keep the dial to themselves.
-        shapes.setColor(ARROW_COLOR.r * shade, ARROW_COLOR.g * shade, ARROW_COLOR.b * shade, 1f);
-        for (JumpDirection direction : JumpDirection.values()) {
-            float markX = direction.getDx(BattleSide.PLAYER);
-            float markY = -direction.getDy();
-            float length = (float) Math.sqrt(markX * markX + markY * markY);
-            markX /= length;
-            markY /= length;
-            float perpX = -markY;
-            float perpY = markX;
-            shapes.rectLine(
-                    compassX + markX * r * COMPASS_ARROW_INNER, compassY + markY * r * COMPASS_ARROW_INNER,
-                    compassX + markX * r * COMPASS_ARROW_HEAD, compassY + markY * r * COMPASS_ARROW_HEAD,
-                    r * COMPASS_ARROW_STEM * 2f);
-            shapes.triangle(
-                    compassX + markX * r * COMPASS_ARROW_TIP, compassY + markY * r * COMPASS_ARROW_TIP,
-                    compassX + markX * r * COMPASS_ARROW_HEAD + perpX * r * COMPASS_ARROW_WING,
-                    compassY + markY * r * COMPASS_ARROW_HEAD + perpY * r * COMPASS_ARROW_WING,
-                    compassX + markX * r * COMPASS_ARROW_HEAD - perpX * r * COMPASS_ARROW_WING,
-                    compassY + markY * r * COMPASS_ARROW_HEAD - perpY * r * COMPASS_ARROW_WING);
-        }
 
-        drawNeedle(0f);
-        // The GO button sits over the foot of the needle and is the whole tap target for the move.
-        shapes.circle(compassX, compassY, r * COMPASS_GO_RADIUS, MARK_SEGMENTS);
+
+        drawCompassRose(shade);
+
+        drawNeedle();
+        // Small center hub of the needle:
+        shapes.setColor(ARROW_COLOR.r * shade, ARROW_COLOR.g * shade, ARROW_COLOR.b * shade, 1f);
+        shapes.circle(compassX, compassY, r * 0.08f, MARK_SEGMENTS);
+
+        // The GO button sits under the compass:
+        shapes.rect(goX - goHalfWidth, goY - goHalfHeight, goHalfWidth * 2f, goHalfHeight * 2f);
 
         float fleeShade = phase == Phase.PLAYER_TURN ? 1f : CONTROL_INACTIVE;
         shapes.setColor(FLEE_COLOR.r * fleeShade, FLEE_COLOR.g * fleeShade, FLEE_COLOR.b * fleeShade, 1f);
@@ -1736,21 +1723,164 @@ public class BattleScreen extends ScreenAdapter {
     }
 
     /**
-     * The needle, a bar of one width from {@code fromShare} of the dial radius out to its tip, so it
-     * ends flat instead of in a point. It is drawn twice per frame: with the dial, and once more after
-     * the cardinal letters, which it crosses.
+     * Draws nautical compass details: 5-degree tick marks around the rim and an 8-pointed compass rose star.
      */
-    private void drawNeedle(float fromShare) {
-        float dirX = aimDirection.getDx(BattleSide.PLAYER);
+    private void drawCompassRose(float shade) {
+        float r = compassRadius;
+        float rimInner = r * (1f - COMPASS_RIM_RING);
+
+        // 1. Ticks every 5 degrees around the rim
+        Color tickColor = new Color(ARROW_COLOR.r * shade, ARROW_COLOR.g * shade, ARROW_COLOR.b * shade, 1f);
+        shapes.setColor(tickColor);
+
+        for (int deg = 0; deg < 360; deg += 5) {
+            float rad = (float) Math.toRadians(deg);
+            float cos = (float) Math.cos(rad);
+            float sin = (float) Math.sin(rad);
+
+            float rInner;
+            float thickness;
+
+            if (deg % 90 == 0) {
+                // Major cardinal ticks (N, E, S, W)
+                rInner = rimInner - r * 0.09f;
+                thickness = Math.max(1f, cell * 0.022f);
+            } else if (deg % 45 == 0) {
+                // Intercardinal ticks (NE, SE, SW, NW)
+                rInner = rimInner - r * 0.07f;
+                thickness = Math.max(1f, cell * 0.018f);
+            } else if (deg % 15 == 0) {
+                // 15-degree ticks
+                rInner = rimInner - r * 0.05f;
+                thickness = Math.max(1f, cell * 0.014f);
+            } else {
+                // 5-degree minor ticks
+                rInner = rimInner - r * 0.03f;
+                thickness = Math.max(1f, cell * 0.010f);
+            }
+
+            shapes.rectLine(
+                    compassX + cos * rInner, compassY + sin * rInner,
+                    compassX + cos * rimInner, compassY + sin * rimInner,
+                    thickness);
+        }
+
+        // 2. Nautical Compass Rose 8-pointed star in dial background
+        Color starColorLight = new Color(ARROW_COLOR.r * shade * 0.85f, ARROW_COLOR.g * shade * 0.85f,
+                ARROW_COLOR.b * shade * 0.85f, 0.7f);
+        Color starColorDark = new Color(ARROW_COLOR.r * shade * 0.50f, ARROW_COLOR.g * shade * 0.50f,
+                ARROW_COLOR.b * shade * 0.50f, 0.7f);
+
+        // 4 Primary cardinal points (N, E, S, W)
+        float cardinalLen = r * 0.50f;
+        float cardinalBase = r * 0.06f;
+        int[] cardinalAngles = {0, 90, 180, 270};
+
+        for (int angle : cardinalAngles) {
+            float rad = (float) Math.toRadians(angle);
+            float cos = (float) Math.cos(rad);
+            float sin = (float) Math.sin(rad);
+
+            float perpCos = -sin;
+            float perpSin = cos;
+
+            float tipX = compassX + cos * cardinalLen;
+            float tipY = compassY + sin * cardinalLen;
+
+            float b1X = compassX + perpCos * cardinalBase;
+            float b1Y = compassY + perpSin * cardinalBase;
+            float b2X = compassX - perpCos * cardinalBase;
+            float b2Y = compassY - perpSin * cardinalBase;
+
+            shapes.setColor(starColorLight);
+            shapes.triangle(compassX, compassY, tipX, tipY, b1X, b1Y);
+            shapes.setColor(starColorDark);
+            shapes.triangle(compassX, compassY, tipX, tipY, b2X, b2Y);
+        }
+
+        // 4 Secondary intercardinal points (NE, SE, SW, NW)
+        float interLen = r * 0.36f;
+        float interBase = r * 0.045f;
+        int[] interAngles = {45, 135, 225, 315};
+
+        for (int angle : interAngles) {
+            float rad = (float) Math.toRadians(angle);
+            float cos = (float) Math.cos(rad);
+            float sin = (float) Math.sin(rad);
+
+            float perpCos = -sin;
+            float perpSin = cos;
+
+            float tipX = compassX + cos * interLen;
+            float tipY = compassY + sin * interLen;
+
+            float b1X = compassX + perpCos * interBase;
+            float b1Y = compassY + perpSin * interBase;
+            float b2X = compassX - perpCos * interBase;
+            float b2Y = compassY - perpSin * interBase;
+
+            shapes.setColor(starColorLight);
+            shapes.triangle(compassX, compassY, tipX, tipY, b1X, b1Y);
+            shapes.setColor(starColorDark);
+            shapes.triangle(compassX, compassY, tipX, tipY, b2X, b2Y);
+        }
+    }
+
+    /**
+     * The compass needle: single-colored, pivoted at ~1/3 of its length, with a flat rear end,
+     * tapering smoothly along its entire length, and ending in a blunt/truncated tip.
+     */
+    private void drawNeedle() {
+        float dirX = aimDirection.getDx(activeSide);
         float dirY = -aimDirection.getDy();
         float length = (float) Math.sqrt(dirX * dirX + dirY * dirY);
         dirX /= length;
         dirY /= length;
-        shapes.rectLine(
-                compassX + dirX * compassRadius * fromShare, compassY + dirY * compassRadius * fromShare,
-                compassX + dirX * compassRadius * NEEDLE_LENGTH, compassY + dirY * compassRadius * NEEDLE_LENGTH,
-                compassRadius * NEEDLE_HALF_WIDTH * 2f);
+
+        float perpX = -dirY;
+        float perpY = dirX;
+
+        float r = compassRadius;
+        float shade = controlShade();
+
+        float rearLen = r * 0.35f;
+        float tipLen = r * 0.90f;
+
+        float wRear = r * 0.06f;
+        float wPivot = r * 0.075f;
+        float wTip = r * 0.02f;
+
+        Color needleColor = new Color(ARROW_COLOR.r * shade, ARROW_COLOR.g * shade, ARROW_COLOR.b * shade, 1f);
+        shapes.setColor(needleColor);
+
+        float cx = compassX;
+        float cy = compassY;
+
+        // Rear flat edge points
+        float r1x = cx - dirX * rearLen + perpX * wRear;
+        float r1y = cy - dirY * rearLen + perpY * wRear;
+        float r2x = cx - dirX * rearLen - perpX * wRear;
+        float r2y = cy - dirY * rearLen - perpY * wRear;
+
+        // Pivot points
+        float m1x = cx + perpX * wPivot;
+        float m1y = cy + perpY * wPivot;
+        float m2x = cx - perpX * wPivot;
+        float m2y = cy - perpY * wPivot;
+
+        // Front truncated tip points
+        float t1x = cx + dirX * tipLen + perpX * wTip;
+        float t1y = cy + dirY * tipLen + perpY * wTip;
+        float t2x = cx + dirX * tipLen - perpX * wTip;
+        float t2y = cy + dirY * tipLen - perpY * wTip;
+
+        // Draw 4 triangles comprising the single-colored tapering needle with a flat rear
+        shapes.triangle(r1x, r1y, m1x, m1y, r2x, r2y); // Rear body 1
+        shapes.triangle(r2x, r2y, m1x, m1y, m2x, m2y); // Rear body 2
+        shapes.triangle(m1x, m1y, t1x, t1y, m2x, m2y); // Front body 1
+        shapes.triangle(m2x, m2y, t1x, t1y, t2x, t2y); // Front body 2
     }
+
 
     private void drawTexts() {
         float gap = lineHeight * TEXT_GAP;
@@ -1770,25 +1900,46 @@ public class BattleScreen extends ScreenAdapter {
         font.setColor(Color.WHITE);
         drawBlockBottom(message, margin, textWidth);
         drawFleeLabel();
+        drawGoLabel();
         drawCompassLabels();
     }
 
     /**
-     * The cardinal letters around the dial and the GO label on the button in the middle. Both are
+     * The cardinal and intercardinal letters around the dial. Both are
      * sized from the dial radius rather than from the text scale, so a small dial carries small
      * letters instead of spilling over the hull beside it.
      */
     private void drawCompassLabels() {
         float ring = compassRadius * COMPASS_LETTER_RING;
+        float interRing = compassRadius * 0.68f;
+        float cos45 = 0.7071068f;
+
+        // Main cardinal directions (N, E, S, W)
         font.getData().setScale(textScale * (compassRadius * COMPASS_LABEL_SIZE) / lineHeight);
         font.setColor(Color.WHITE);
         drawCentered("N", compassX, compassY + ring);
         drawCentered("E", compassX + ring, compassY);
         drawCentered("S", compassX, compassY - ring);
         drawCentered("W", compassX - ring, compassY);
-        font.setColor(Color.BLACK);
-        drawCentered("GO!", compassX, compassY);
+
+        // Intercardinal directions (NE, SE, SW, NW)
+        font.getData().setScale(textScale * (compassRadius * COMPASS_LABEL_SIZE * 0.58f) / lineHeight);
+        font.setColor(new Color(0.85f, 0.85f, 0.85f, 1f));
+        drawCentered("NE", compassX + interRing * cos45, compassY + interRing * cos45);
+        drawCentered("SE", compassX + interRing * cos45, compassY - interRing * cos45);
+        drawCentered("SW", compassX - interRing * cos45, compassY - interRing * cos45);
+        drawCentered("NW", compassX - interRing * cos45, compassY + interRing * cos45);
+
         font.getData().setScale(textScale);
+    }
+
+    /** Draws "GO!" in the middle of the GO button under the compass. */
+    private void drawGoLabel() {
+        String label = "GO!";
+        float shade = controlShade();
+        font.setColor(shade < 1f ? Color.DARK_GRAY : Color.BLACK);
+        layout.setText(font, label, font.getColor(), goHalfWidth * 2f, Align.center, false);
+        font.draw(batch, layout, goX - layout.width / 2f, goY + layout.height / 2f);
     }
 
     private String playerLine() {
