@@ -472,11 +472,14 @@ public class BattleScreen extends ScreenAdapter {
     private static final Color HATCH_OPEN_COLOR = new Color(0.98f, 0.79f, 0.28f, 1f);
     private static final float HATCH_OPEN_BRIGHTNESS = 0.85f;
     private static final float HATCH_OPEN_PULSE = 0.15f;
-    /** A closed hatch sits this dark; a ready one pulses, and the enemy's are always dimmed. */
+    /** A closed hatch sits this dark; a ready one pulses. */
     private static final float HATCH_CLOSED_BRIGHTNESS = 0.6f;
-    private static final float HATCH_ENEMY_BRIGHTNESS = 0.8f;
     /** The tap target of a hatch is widened by this many cells on each side. */
     private static final float HATCH_TAP_REACH = 1f;
+    /** How far the open lid swings out from the wall: a right angle would lay it flat. */
+    private static final float HATCH_LID_OPEN_DEG = 80f;
+    /** The lid board is this thick, in board cells. */
+    private static final float HATCH_LID_THICKNESS_CELLS = 0.1f;
     /**
      * Waiting crew are ticked off just outside the hatch: this far out, this far apart. The column
      * hangs from the top edge of its hatch, so it follows the hatch over the hull rather than the row
@@ -836,23 +839,23 @@ public class BattleScreen extends ScreenAdapter {
         // The tap target is the hatch itself widened by HATCH_TAP_REACH cells on each side, so a hatch
         // stays easy to hit even though the wall shows it narrower than a cell. The hatch slants with
         // the wall, so the box is the bounding box of the four corners: what the eye sees of the hatch
-        // is inside it. The boxes of two rows overlap - the reach is wider than the gap between the
-        // hatches - so the nearest hatch wins: a tap anywhere on a hatch opens that hatch, and never
-        // the one above it.
+        // is inside it. The reach is wider than the gap between the hatches, so the vertical space is
+        // split at the midpoints between adjacent hatch edges: each tap belongs to exactly one hatch,
+        // and the top and bottom rows get the extra reach above and below the column.
         int hit = -1;
-        float nearest = 0f;
-        for (int i = 0; i < BattleState.HATCH_ROWS.length; i++) {
-            float reach = cell * HATCH_TAP_REACH;
-            float bottom = hatchBottom(i);
-            float top = hatchTop(i);
-            if (touchX < hatchLeft(true) - reach || touchX > hatchRight(true) + reach
-                    || touchY < bottom - reach || touchY > top + reach) {
+        int last = BattleState.HATCH_ROWS.length - 1;
+        float reach = cell * HATCH_TAP_REACH;
+        for (int i = 0; i <= last; i++) {
+            if (touchX < hatchLeft(true) - reach || touchX > hatchRight(true) + reach) {
                 continue;
             }
-            float distance = Math.abs(touchY - (bottom + top) / 2f);
-            if (hit < 0 || distance < nearest) {
+            float bottom = hatchBottom(i);
+            float top = hatchTop(i);
+            float minY = i == last ? bottom - reach : (bottom + hatchTop(i + 1)) / 2f;
+            float maxY = i == 0 ? top + reach : (hatchBottom(i - 1) + top) / 2f;
+            if (touchY >= minY && touchY < maxY) {
                 hit = i;
-                nearest = distance;
+                break;
             }
         }
         if (hit >= 0) {
@@ -1352,6 +1355,9 @@ public class BattleScreen extends ScreenAdapter {
                 shapes.circle(cx, cy, cell * CREW_RADIUS, CREW_SEGMENTS);
             }
         }
+
+        // Foreground open hatch lids (klapy) rendered above net and crew
+        drawForegroundLids(pulse);
     }
 
     /**
@@ -1371,7 +1377,7 @@ public class BattleScreen extends ScreenAdapter {
      * upright (the projection moves a point sideways with its place along the ship only, never with its
      * height), while its top and bottom slant with the wall, exactly as the deck above them does.
      */
-    private void hatchQuad(boolean player, int index) {
+    private void hatchInteriorQuad(boolean player, int index) {
         float low = hatchLow(index);
         float high = low + HATCH_OPEN_UNITS;
         float rearX = hatchRearX(player);
@@ -1387,6 +1393,87 @@ public class BattleScreen extends ScreenAdapter {
         hullEdge(bowX, bowTop, bowX, bowBottom);
         hullEdge(bowX, bowBottom, rearX, rearBottom);
         hullEdge(rearX, rearBottom, rearX, rearTop);
+    }
+
+    private void drawForegroundLids(float pulse) {
+        for (int i = 0; i < HATCH_COUNT; i++) {
+            if (!openHatches[i] || state.isHatchDisabled(BattleSide.PLAYER, i)) {
+                continue;
+            }
+            shapes.setColor(PLAYER_COLOR.r * HATCH_CLOSED_BRIGHTNESS, PLAYER_COLOR.g * HATCH_CLOSED_BRIGHTNESS,
+                    PLAYER_COLOR.b * HATCH_CLOSED_BRIGHTNESS, 1f);
+            hatchOpenLidQuad(true, i);
+        }
+    }
+
+    private void hatchOpenLidQuad(boolean player, int index) {
+        float low = hatchLow(index);
+        float high = low + HATCH_OPEN_UNITS;
+        float hUnits = high - low;
+
+        float rearX = hatchRearX(player);
+        float bowX = hatchBowX(player);
+        float rearTop = hatchCornerY(false, high);
+        float bowTop = hatchCornerY(true, high);
+
+        // The lid stops short of a right angle, so its free edge hangs below the hinge: the swing
+        // outward is sin(angle) of its length and the drop is cos(angle).
+        float openRad = (float) Math.toRadians(HATCH_LID_OPEN_DEG);
+        float outward = hUnits * (float) Math.sin(openRad);
+        float outwardOffset = player ? outward : -outward;
+        float freeHeight = high - hUnits * (float) Math.cos(openRad);
+        float lidRearX = hullScreenX(player, HATCH_COLUMN_UNITS, HULL_BEAM_UNITS + outwardOffset);
+        float lidBowX = hullScreenX(player, HATCH_COLUMN_UNITS + HATCH_WIDTH_UNITS,
+                HULL_BEAM_UNITS + outwardOffset);
+        float lidRearTop = hullScreenY(HATCH_COLUMN_UNITS, HULL_BEAM_UNITS + outwardOffset, freeHeight);
+        float lidBowTop = hullScreenY(HATCH_COLUMN_UNITS + HATCH_WIDTH_UNITS,
+                HULL_BEAM_UNITS + outwardOffset, freeHeight);
+
+        float thick = cell * HATCH_LID_THICKNESS_CELLS;
+
+        // 1. Top Face
+        shapes.setColor(PLAYER_COLOR.r * HATCH_CLOSED_BRIGHTNESS, PLAYER_COLOR.g * HATCH_CLOSED_BRIGHTNESS,
+                PLAYER_COLOR.b * HATCH_CLOSED_BRIGHTNESS, 1f);
+        shapes.triangle(rearX, rearTop, bowX, bowTop, lidBowX, lidBowTop);
+        shapes.triangle(rearX, rearTop, lidBowX, lidBowTop, lidRearX, lidRearTop);
+
+        // 2. Bottom Face
+        shapes.setColor(shade(PLAYER_COLOR, 0.3f));
+        shapes.triangle(rearX, rearTop - thick, lidRearX, lidRearTop - thick, lidBowX, lidBowTop - thick);
+        shapes.triangle(rearX, rearTop - thick, lidBowX, lidBowTop - thick, bowX, bowTop - thick);
+
+        // 3. Front Face (Outer edge)
+        shapes.setColor(shade(PLAYER_COLOR, 0.45f));
+        shapes.triangle(lidRearX, lidRearTop, lidBowX, lidBowTop, lidBowX, lidBowTop - thick);
+        shapes.triangle(lidRearX, lidRearTop, lidBowX, lidBowTop - thick, lidRearX, lidRearTop - thick);
+
+        // 4. Rear Side Face
+        shapes.setColor(shade(PLAYER_COLOR, 0.35f));
+        shapes.triangle(rearX, rearTop, lidRearX, lidRearTop, lidRearX, lidRearTop - thick);
+        shapes.triangle(rearX, rearTop, lidRearX, lidRearTop - thick, rearX, rearTop - thick);
+
+        // 5. Bow Side Face
+        shapes.setColor(shade(PLAYER_COLOR, 0.35f));
+        shapes.triangle(bowX, bowTop, bowX, bowTop - thick, lidBowX, lidBowTop - thick);
+        shapes.triangle(bowX, bowTop, lidBowX, lidBowTop - thick, lidBowX, lidBowTop);
+
+        // Outlines
+        shapes.setColor(HATCH_EDGE_COLOR);
+        // Top perimeter
+        hullEdge(rearX, rearTop, bowX, bowTop);
+        hullEdge(bowX, bowTop, lidBowX, lidBowTop);
+        hullEdge(lidBowX, lidBowTop, lidRearX, lidRearTop);
+        hullEdge(lidRearX, lidRearTop, rearX, rearTop);
+        // Bottom perimeter
+        hullEdge(rearX, rearTop - thick, bowX, bowTop - thick);
+        hullEdge(bowX, bowTop - thick, lidBowX, lidBowTop - thick);
+        hullEdge(lidBowX, lidBowTop - thick, lidRearX, lidRearTop - thick);
+        hullEdge(lidRearX, lidRearTop - thick, rearX, rearTop - thick);
+        // Vertical corner edges
+        hullEdge(rearX, rearTop, rearX, rearTop - thick);
+        hullEdge(bowX, bowTop, bowX, bowTop - thick);
+        hullEdge(lidRearX, lidRearTop, lidRearX, lidRearTop - thick);
+        hullEdge(lidBowX, lidBowTop, lidBowX, lidBowTop - thick);
     }
 
     /**
@@ -1431,6 +1518,7 @@ public class BattleScreen extends ScreenAdapter {
         return Math.min(hatchCornerY(false, low), hatchCornerY(true, low));
     }
 
+    /** The top edge of the hatch opening; the open lid hangs below it and does not raise it. */
     private float hatchTop(int index) {
         float high = hatchLow(index) + HATCH_OPEN_UNITS;
         return Math.max(hatchCornerY(false, high), hatchCornerY(true, high));
@@ -1732,23 +1820,25 @@ public class BattleScreen extends ScreenAdapter {
 
     private void drawHatch(boolean player, int y, int index, float pulse) {
         BattleSide owner = player ? BattleSide.PLAYER : BattleSide.ENEMY;
+        boolean isOpen = owner == BattleSide.PLAYER && openHatches[index];
+
         if (state.isHatchDisabled(owner, index)) {
             shapes.setColor(HATCH_DISABLED_COLOR);
-        } else if (owner == BattleSide.PLAYER) {
-            if (openHatches[index]) {
-                float brightness = HATCH_OPEN_BRIGHTNESS + HATCH_OPEN_PULSE * pulse;
-                shapes.setColor(HATCH_OPEN_COLOR.r * brightness, HATCH_OPEN_COLOR.g * brightness,
-                        HATCH_OPEN_COLOR.b * brightness, 1f);
-            } else {
-                boolean ready = phase == Phase.PLAYER_TURN && state.canRelease(BattleSide.PLAYER, index);
-                float brightness = ready ? pulse : HATCH_CLOSED_BRIGHTNESS;
-                shapes.setColor(PLAYER_COLOR.r * brightness, PLAYER_COLOR.g * brightness, PLAYER_COLOR.b * brightness, 1f);
-            }
+            hatchInteriorQuad(player, index);
+        } else if (isOpen) {
+            // 1. Draw glowing open interior (lid is drawn in foreground above net)
+            float brightness = HATCH_OPEN_BRIGHTNESS + HATCH_OPEN_PULSE * pulse;
+            shapes.setColor(HATCH_OPEN_COLOR.r * brightness, HATCH_OPEN_COLOR.g * brightness,
+                    HATCH_OPEN_COLOR.b * brightness, 1f);
+            hatchInteriorQuad(player, index);
         } else {
-            shapes.setColor(ENEMY_COLOR.r * HATCH_ENEMY_BRIGHTNESS, ENEMY_COLOR.g * HATCH_ENEMY_BRIGHTNESS,
-                    ENEMY_COLOR.b * HATCH_ENEMY_BRIGHTNESS, 1f);
+            // Closed hatch
+            boolean ready = owner == BattleSide.PLAYER && phase == Phase.PLAYER_TURN && state.canRelease(BattleSide.PLAYER, index);
+            float brightness = ready ? pulse : HATCH_CLOSED_BRIGHTNESS;
+            Color baseColor = owner == BattleSide.PLAYER ? PLAYER_COLOR : ENEMY_COLOR;
+            shapes.setColor(baseColor.r * brightness, baseColor.g * brightness, baseColor.b * brightness, 1f);
+            hatchInteriorQuad(player, index);
         }
-        hatchQuad(player, index);
 
         if (owner == BattleSide.PLAYER && openHatches[index]) {
             drawEntryMarker(cellBottom(y));

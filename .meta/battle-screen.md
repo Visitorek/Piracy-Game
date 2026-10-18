@@ -622,7 +622,9 @@ wszystkich 8 rozdzielczosciach).
 | `ENTRY_MARKER_RADIUS` / `ENTRY_MARKER_INNER` | 0.44 / 0.34 cell | pierscien pokazujacy pole wejscia |
 | `ENTRY_MARKER_SEGMENTS` | 24 | ile segmentow ma pierscien |
 
-Geometria lukow (`drawHatchColumn` / `hatchQuad`):
+Geometria lukow i klap (`drawHatchColumn` / `hatchInteriorQuad` / `hatchOpenLidQuad`):
+
+Każdy luk wyposażony jest w prostą klapę zamykającą. Gdy luk jest zamknięty, klapa zakrywa otwór w burcie. Po zaznaczeniu luku do wyprowadzenia jednostek (`openHatches[index] == true`), klapa otwiera się o **80 stopni** na zawiasach (10° poniżej poziomu, bo 90° to pełna pozioma półka), więc jej wolna krawędź jest niżej od zawiasu; odsłania to złociście pulsujące wnętrze luku. Otwarta klapa rysowana jest w pierwszym planie (**powyżej sieci i załogi**) jako pełny trójwymiarowy **prostopadłościan** o grubości wynoszącej **10% wysokości komórki siatki** (`cell * 0.1f`).
 
 ```
 low    = HATCH_MARGIN_UNITS + (HATCH_COUNT - 1 - i) * HATCH_STEP_UNITS
@@ -708,10 +710,12 @@ Obszar dotyku lukow w `handleInput` jest budowany z tego samego rzutu, ale z **p
 prostokatem na ekranie, a palec nie trafia w skos. Pudelko jest o tyle wyzsze od luku, o ile
 opadaja jego krawedzie: na 1920x1080 ma `82.75 px = 1.029 cell` wysokosci zamiast `0.874 cell`
 luku (na 400x800 `17.33 px`), i jest poszerzone o `cell * HATCH_TAP_REACH` z kazdej strony - inaczej
-waski luk na burcie bylby prawie nie do trafienia. Poniewaz zasieg jest wiekszy niz odstep miedzy
-lukami, pudelka dwoch sasiednich lukow zachodza na siebie; zeby nie otwieralo to luku wyzej, wygrywa
-luk **blizszy dotkniecia** (porownanie odleglosci `touchY` od srodka pudelka). Dotkniecie
-w dowolnym miejscu luku zawsze otwiera ten luk.
+waski luk na burcie bylby prawie nie do trafienia. `hatchTop` bierze tylko gorna krawedz otworu:
+otwarta klapa opada od zawiasu o 10° ponizej poziomu (jej grubosc schodzi w dol), wiec jej wolna
+krawedz jest nizej od gornej krawedzi otworu i nie podnosi pudelka. Poniewaz zasieg dotyku (`HATCH_TAP_REACH`) jest wiekszy niz odstep miedzy lukami,
+przestrzenie pionowe dzielone sa na rozlaczne pasy, ktorych granice leza w polowie odleglosci
+miedzy dolna krawedzia luku wyzej a gorna krawedzia luku nizej. Gorny i dolny luk dostaja zasieg
+ponad kolumne, a dotkniecie w dowolnym miejscu luku otwiera ten wlasciwy luk, nie sasiedni.
 
 ### 10. Sterowanie
 
