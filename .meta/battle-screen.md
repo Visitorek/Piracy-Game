@@ -755,7 +755,7 @@ to ozdobna róża kompasu: białe główne kierunki `N`, `E`, `S`, `W` leżą na
   ruch wykonuje wylacznie przycisk "GO!" pod kompasem.
 
 `aimDirection` startuje jako `FORWARD` i **przezywa miedzy turami** - igla zostaje tam, gdzie ja
-ustawiono. Podczas tury przeciwnika (AI) igła kompasu automatycznie ustawia się w kierunku ruchu wykonanego przez AI (wskazując w lewo, w stronę gracza), dzięki czemu gracz widzi na kompasie, jaki manewr wykonał przeciwnik.
+ustawiono. Podczas tury przeciwnika (AI) igła kompasu automatycznie ustawia się w kierunku ruchu wykonanego przez AI (wskazując in lewo, w stronę gracza), dzięki czemu gracz widzi na kompasie, jaki manewr wykonał przeciwnik. Każdy ruch jednostek (skok lub wyprowadzenie z luków, gdzie nowa jednostka płynnie wychodzi ze środka luku na pole wejściowe sieci) jest płynnie animowany z użyciem funkcji wygładzającej (smoothstep) i zajmuje dokładnie 0.5 sekundy (`MOVE_ANIMATION_SECONDS = 0.5f`). W trakcie animacji ruchu interfejs gracza jest zablokowany, zapewniając czytelność starcia.
 
 Plytka ucieczki siedzi w prawym gornym rogu **obszaru gry**, wyrownana do `width - margin` i
 zaczepiona pod pasem tekstu (`topBand`), a nie pod kompasem. Na waskich ekranach panel boczny jest

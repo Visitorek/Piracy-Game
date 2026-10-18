@@ -24,7 +24,11 @@ import com.corsair.deluxe.domain.battle.BattleResult;
 import com.corsair.deluxe.domain.battle.BattleSide;
 import com.corsair.deluxe.domain.battle.BattleState;
 import com.corsair.deluxe.domain.battle.JumpDirection;
+import com.corsair.deluxe.domain.battle.MoveRecord;
+import com.corsair.deluxe.domain.battle.MoveType;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 /**
@@ -505,7 +509,7 @@ public class BattleScreen extends ScreenAdapter {
     private static final Color FLEE_COLOR = new Color(0.45f, 0.12f, 0.12f, 1f);
     // --- end of look parameters ------------------------------------------------------------------
 
-    private enum Phase { PLAYER_TURN, ENEMY_TURN, FINISHED }
+    private enum Phase { PLAYER_TURN, ENEMY_TURN, ANIMATING, FINISHED }
 
     private final CorsairGame game;
     private final WorldScreen returnScreen;
@@ -530,6 +534,69 @@ public class BattleScreen extends ScreenAdapter {
     private float phaseTime;
     private float elapsed;
     private boolean leaving;
+
+    private static final float MOVE_ANIMATION_SECONDS = 0.5f;
+    private float animTime;
+    private final List<CrewAnimation> activeAnimations = new ArrayList<CrewAnimation>();
+
+    private static final class CrewAnimation {
+        final BattleSide side;
+        final float startX, startY;
+        final float endX, endY;
+        final int endGridX, endGridY;
+
+        CrewAnimation(BattleSide side, float startX, float startY, float endX, float endY, int endGridX, int endGridY) {
+            this.side = side;
+            this.startX = startX;
+            this.startY = startY;
+            this.endX = endX;
+            this.endY = endY;
+            this.endGridX = endGridX;
+            this.endGridY = endGridY;
+        }
+    }
+
+    private float hatchY(boolean player, int index) {
+        float high = hatchLow(index) + HATCH_OPEN_UNITS;
+        return hatchCornerY(false, high);
+    }
+
+    private void startAnimations(ActionResult result) {
+        activeAnimations.clear();
+        for (MoveRecord move : result.moves) {
+            float startSx, startSy, endSx, endSy;
+            int endGridX = move.endX;
+            int endGridY = move.endY;
+
+            if (move.type == MoveType.DEPLOY) {
+                boolean isPlayer = move.side == BattleSide.PLAYER;
+                startSx = hullScreenX(isPlayer, HATCH_COLUMN_UNITS + HATCH_WIDTH_UNITS / 2f, HULL_BEAM_UNITS);
+                startSy = hullScreenY(HATCH_COLUMN_UNITS + HATCH_WIDTH_UNITS / 2f, HULL_BEAM_UNITS, hatchLow(move.startY) + HATCH_OPEN_UNITS / 2f);
+            } else {
+                startSx = cellLeft(move.startX) + cell / 2f;
+                startSy = cellBottom(move.startY) + cell / 2f;
+            }
+
+            if (move.type == MoveType.HATCH_HIT) {
+                boolean isPlayerHit = move.endX == 0;
+                float hx = isPlayerHit ? hatchRight(true) : hatchLeft(false);
+                endSx = hx;
+                endSy = hatchY(isPlayerHit, BattleState.hatchIndexForRow(move.endY));
+            } else {
+                endSx = cellLeft(move.endX) + cell / 2f;
+                endSy = cellBottom(move.endY) + cell / 2f;
+            }
+
+            activeAnimations.add(new CrewAnimation(move.side, startSx, startSy, endSx, endSy, endGridX, endGridY));
+        }
+
+        if (!activeAnimations.isEmpty()) {
+            phase = Phase.ANIMATING;
+            animTime = 0f;
+        } else {
+            afterAction();
+        }
+    }
 
     private float width;
     private float height;
@@ -701,6 +768,13 @@ public class BattleScreen extends ScreenAdapter {
         }
         elapsed += delta;
         phaseTime += delta;
+        if (phase == Phase.ANIMATING) {
+            animTime += delta;
+            if (animTime >= MOVE_ANIMATION_SECONDS) {
+                activeAnimations.clear();
+                afterAction();
+            }
+        }
         handleInput();
         updateEnemy();
         if (game.getScreen() == this) {
@@ -870,7 +944,7 @@ public class BattleScreen extends ScreenAdapter {
             closeHatches();
         }
         message = "Ty: " + describe(action, result);
-        afterAction();
+        startAnimations(result);
     }
 
     private void updateEnemy() {
@@ -884,7 +958,7 @@ public class BattleScreen extends ScreenAdapter {
         }
         ActionResult result = state.apply(action);
         message = "Wrog: " + describe(action, result);
-        afterAction();
+        startAnimations(result);
     }
 
     private void afterAction() {
@@ -1244,11 +1318,37 @@ public class BattleScreen extends ScreenAdapter {
                 if (occupant == null) {
                     continue;
                 }
+                boolean skip = false;
+                if (phase == Phase.ANIMATING) {
+                    for (CrewAnimation anim : activeAnimations) {
+                        if (anim.endGridX == x && anim.endGridY == y && (anim.startX != anim.endX || anim.startY != anim.endY)) {
+                            skip = true;
+                            break;
+                        }
+                    }
+                }
+                if (skip) {
+                    continue;
+                }
+
                 float cx = cellLeft(x) + cell / 2f;
                 float cy = cellBottom(y) + cell / 2f;
                 shapes.setColor(CREW_SHADOW_COLOR);
                 shapes.circle(cx, cy, cell * CREW_SHADOW_RADIUS, CREW_SEGMENTS);
                 shapes.setColor(occupant == BattleSide.PLAYER ? PLAYER_COLOR : ENEMY_COLOR);
+                shapes.circle(cx, cy, cell * CREW_RADIUS, CREW_SEGMENTS);
+            }
+        }
+
+        if (phase == Phase.ANIMATING) {
+            float p = Math.min(1f, animTime / MOVE_ANIMATION_SECONDS);
+            float ease = p * p * (3f - 2f * p);
+            for (CrewAnimation anim : activeAnimations) {
+                float cx = anim.startX + (anim.endX - anim.startX) * ease;
+                float cy = anim.startY + (anim.endY - anim.startY) * ease;
+                shapes.setColor(CREW_SHADOW_COLOR);
+                shapes.circle(cx, cy, cell * CREW_SHADOW_RADIUS, CREW_SEGMENTS);
+                shapes.setColor(anim.side == BattleSide.PLAYER ? PLAYER_COLOR : ENEMY_COLOR);
                 shapes.circle(cx, cy, cell * CREW_RADIUS, CREW_SEGMENTS);
             }
         }

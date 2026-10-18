@@ -249,6 +249,9 @@ public class BattleState {
             int y = HATCH_ROWS[i];
             if (crew[x][y] != null) {
                 result.killed++;
+                result.moves.add(new MoveRecord(side, hatchColumn(side), i, x, y, MoveType.KILLED));
+            } else {
+                result.moves.add(new MoveRecord(side, hatchColumn(side), i, x, y, MoveType.DEPLOY));
             }
             crew[x][y] = side;
             hatchCrew[side.ordinal()][i]--;
@@ -297,6 +300,9 @@ public class BattleState {
             if (hatchIndex >= 0 && !hatchDisabled[owner.ordinal()][hatchIndex]) {
                 hatchDisabled[owner.ordinal()][hatchIndex] = true;
                 result.hatchesDisabled++;
+                result.moves.add(new MoveRecord(side, x, y, targetX, y, MoveType.HATCH_HIT));
+            } else {
+                result.moves.add(new MoveRecord(side, x, y, x, y, MoveType.MOVE));
             }
             return;
         }
@@ -304,13 +310,18 @@ public class BattleState {
         if (holes[targetX][targetY]) {
             crew[x][y] = null;
             result.fell++;
+            result.moves.add(new MoveRecord(side, x, y, targetX, targetY, MoveType.FELL));
             return;
         }
         if (crew[targetX][targetY] == side) {
+            result.moves.add(new MoveRecord(side, x, y, x, y, MoveType.MOVE));
             return;
         }
         if (crew[targetX][targetY] != null) {
             result.killed++;
+            result.moves.add(new MoveRecord(side, x, y, targetX, targetY, MoveType.KILLED));
+        } else {
+            result.moves.add(new MoveRecord(side, x, y, targetX, targetY, MoveType.MOVE));
         }
         crew[targetX][targetY] = side;
         crew[x][y] = null;
