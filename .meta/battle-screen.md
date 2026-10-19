@@ -622,9 +622,9 @@ wszystkich 8 rozdzielczosciach).
 | `ENTRY_MARKER_RADIUS` / `ENTRY_MARKER_INNER` | 0.44 / 0.34 cell | pierscien pokazujacy pole wejscia |
 | `ENTRY_MARKER_SEGMENTS` | 24 | ile segmentow ma pierscien |
 
-Geometria lukow i klap (`drawHatchColumn` / `hatchInteriorQuad` / `hatchOpenLidQuad`):
+Geometria lukow i klap (`drawHatchColumn` / `hatchInteriorQuad` / `hatchClosedLidQuad` / `hatchOpenLidQuad`):
 
-Każdy luk wyposażony jest w prostą klapę zamykającą. Gdy luk jest zamknięty, klapa zakrywa otwór w burcie. Po zaznaczeniu luku do wyprowadzenia jednostek (`openHatches[index] == true`), klapa otwiera się o **80 stopni** na zawiasach (10° poniżej poziomu, bo 90° to pełna pozioma półka), więc jej wolna krawędź jest niżej od zawiasu; odsłania to złociście pulsujące wnętrze luku. Otwarta klapa rysowana jest w pierwszym planie (**powyżej sieci i załogi**) jako pełny trójwymiarowy **prostopadłościan** o grubości wynoszącej **10% wysokości komórki siatki** (`cell * 0.1f`).
+Każdy luk wyposażony jest w klapę zamykającą. Domyślnie klapa jest **zamknięta** i zakrywa otwór, a rysowana jest razem z kolumną luków, więc sieć leży na niej jak na poszyciu. Zamknięta klapa **nie leży płasko na burcie**: jest deską odsuniętą od poszycia o **własną grubość**, czyli jej przednia płaszczyzna stoi przed burtą o `cell * 0.1f`, a tylna przylega do burty i zakrywa otwór. Odstęp liczony jest w ekranie: `hatchClosedLidQuad` mierzy, ile pikseli szerokości daje jedna jednostka w poprzek burty (`|hullScreenX(..., B + 1) - rearX|`), i bierze tyle jednostek, żeby rzut pokazał dokładnie `thick` - inaczej przeskalowanie `HULL_BEAM_UNITS = 3` wobec `HATCH_OPEN_UNITS ≈ 1.1` dałoby klapę cieńszą lub grubszą od otwartej. Po zaznaczeniu luku do wyprowadzenia jednostek (`openHatches[index] == true`) klapa otwiera się o **80 stopni** na zawiasach (10° poniżej poziomu, bo 90° to pełna pozioma półka), więc jej wolna krawędź jest niżej od zawiasu; odsłania to złociście pulsujące wnętrze luku. Otwarta klapa rysowana jest w pierwszym planie (**powyżej sieci i załogi**). W obu stanach klapa jest pełnym trójwymiarowym **prostopadłościanem** o grubości wynoszącej **10% wysokości komórki siatki** (`cell * 0.1f`).
 
 ```
 low    = HATCH_MARGIN_UNITS + (HATCH_COUNT - 1 - i) * HATCH_STEP_UNITS
